@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Front page{% endblock %}
+{% block content %}
+
+<div class="columns">
+  <div class='column col-3'></div>
+  <div class='column col-6 text-center'>
+    <br>
+    <h1 class='massive'><i class='fas fa-plane-departure'></i> heal<span class='alternate_massive'>Trip</span></h1>
+    <h6>healTrip provides a great way for you plan your vacation without worrying about whether you are going into covid hotspots. Just tell us which cities you want to visit and let us plan your trip for you with ideal flights and hotels.</h6>
+    <br>
+    <img src = "{{ url_for('static', filename='travel_booking.svg') }}" alt="My Happy SVG" width="100%"/>
+    <br>
+    <br>
+    {% if not current_user.is_authenticated %}
+    <a href="/login"><button class='btn btn-primary btn-lg'>Login</button></a>
+    <a href="/register"><button class='btn btn-lg'>Register</button></a>
+    {% else %}
+    <a href="/home"><button class='btn btn-lg'>Start planning the trip!</button></a>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

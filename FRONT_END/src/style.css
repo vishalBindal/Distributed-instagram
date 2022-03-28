@@ -1,0 +1,97 @@
+.massive{
+    color:#960DFF;
+    font-weight:900;
+    font-size:6em;
+    line-height:0.8em;
+    font-family: -apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+}
+
+.alternate_massive{
+    color:black;
+}
+
+.customContainer {
+    padding: 10px !important;
+}
+
+.textCenter {
+    text-align: center !important;
+}
+
+.shadowContainer {
+    padding: 10px !important;
+    box-shadow: 0 0.25rem 1rem rgba(48, 55, 66, .15) !important;
+}
+
+.selectableTr {
+    cursor: pointer
+}
+
+#map {
+    height: 50vh;
+}
+
+body{ height:100vh; margin:0; }
+
+body{ 
+  display:flex; 
+  flex-direction:column; 
+}
+
+footer{
+  margin-top:auto; 
+}
+
+/* html, body {
+      height: 100%;
+      /* margin: 0;
+      padding: 0; 
+  }*/
+
+.hide {
+    display: none;
+}
+
+.clear {
+    float: none;
+    clear: both;
+}
+
+.rating {
+    width: 90px;
+    unicode-bidi: bidi-override;
+    direction: rtl;
+    text-align: center;
+    position: relative;
+}
+
+.rating > label {
+    float: right;
+    display: inline;
+    padding: 0;
+    margin: 0;
+    position: relative;
+    width: 1.1em;
+    cursor: pointer;
+    color: #000;
+}
+
+.rating > label:hover,
+.rating > label:hover ~ label,
+.rating > input.radio-btn:checked ~ label {
+    color: transparent;
+}
+
+.rating > label:hover:before,
+.rating > label:hover ~ label:before,
+.rating > input.radio-btn:checked ~ label:before,
+.rating > input.radio-btn:checked ~ label:before {
+    content: "\2605";
+    position: absolute;
+    left: 0;
+    color: #FFD700;
+}
+
+.center_icon{
+    text-align: center;
+}

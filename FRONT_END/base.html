@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+    <script src="https://kit.fontawesome.com/9ccf722acc.js" crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <title>{% block title %}{% endblock %}</title>
+</head>
+<body>
+    <header class="navbar" style="padding: 10px !important;">
+        <section class="navbar-section"></section>
+        <sectifon class="navbar-center">
+            <a href="/" class="navbar-brand mr-2"><strong><i class="fas fa-plane-departure"></i> healTrip</strong></a>
+        </sectifon>
+        <section class="navbar-section">
+            {% if not current_user.is_authenticated %}
+            <a href="/login" class="btn btn-link">Login</a>
+            <a href="/register" class="btn btn-link">Register</a>
+            {% endif %}
+            {% if current_user.is_authenticated %}
+            {% if current_user.is_admin %}
+            <a href='/admin' class='btn btn-link'>Admin</a>
+            {% endif %}
+            <a href='/home' class='btn btn-link'>Home</a>
+            <a href="/profile" class="btn btn-link">Profile</a>
+            <a href="/logout" class="btn btn-link">Logout</a>
+            {% endif %}
+            <a href="https://github.com/tmibvishal/Heal-trip" class="btn btn-link"><i class="fab fa-github"></i> GitHub</a>
+        </section>
+    </header>
+    <div class="divider"></div>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <div class="divider"></div>
+        <br>
+        <div class="container">
+            <div class="columns">
+                <div class="column col-1">
+                </div>
+                <div class="column col-10">
+                    <p class="textCenter"> Designed and built by <span class="chip">Chirag Mohapatra</span>, <span class="chip">Vishal Bindal</span> and <span class="chip">Vishal Singh</span> for COL362(DBMS) <img style="vertical-align:middle;" src="{{ url_for('static', filename='images/IITDlogo.png') }}" width="40px">IIT DELHI. Licensed under the <a href="https://github.com/picturepan2/spectre/blob/master/LICENSE" target="_blank">MIT License</a>.</p>
+                </div>
+                <div class="column col-1"></div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

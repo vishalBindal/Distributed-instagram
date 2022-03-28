@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="columns">
+    <div class="column col-4 col-lg-4 col-xs-0"></div>
+    <div class="column col-4 col-lg-4 col-xs-12">
+      <h1>Register</h1>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="toast toast-error">
+            {{ messages[0] }}
+          </div>
+        {% endif %}
+      {% endwith %}
+      <form method='POST' action='/register'>
+          <div class="form-group">
+            <label class="form-label" for="username">Username</label>
+            <input class="form-input" type="text" name="username" id="username" placeholder="..." value="{{username}}">
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="email">Email</label>
+            <input class="form-input" type="email" name="email" id="email" placeholder="..." value="{{email}}">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-input" type="password" name="password" id="password" placeholder="...">
+          </div>
+
+          <button class='btn'>Register</button>
+      </form>
+      <br>
+    </div>
+    <div class="column col-4 col-lg-4 col-xs-0"></div>
+  </div>
+</div>
+
+{% endblock %}

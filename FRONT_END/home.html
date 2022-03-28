@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}Home page{% endblock %}
+{% block content %}
+<div class="container customContainer">
+  <div class="columns">
+    <div class="column col-3 col-lg-2 col-xs-0"></div>
+    <div class="column col-6 col-lg-8 col-xs-12">
+      <h4><i class="fas fa-sort"></i> Home Page</h4>
+      <ul class="step">
+        <li class="step-item active">
+          <a href="{{ url_for('home') }}" class="tooltip" data-tooltip="Choose from and vacation destination cities">Choose from and to</a>
+        </li>
+        <li class="step-item">
+          <a class="tooltip"
+            data-tooltip="Order the cities in which you want to visit them and add stay period in number of days">Order
+            Cities</a>
+        </li>
+        <li class="step-item">
+          <a class="tooltip" data-tooltip="Choose hotels and finalize">Choose Hotels</a>
+        </li>
+      </ul>
+      <blockquote>
+        Choose origin city and departure date and then choose a particular city or a list of cities and let us plan the
+        perfect trip for you!
+      </blockquote>
+      <div class="card shadowContainer">
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label" for="input-example-1">From</label>
+            <form autocomplete="off" class="form-group">
+              <div class="autocomplete form-group">
+                <input class="form-input input-sm" id="From" type="text">
+              </div>
+            </form>
+            <label class="form-label" for="input-example-1">Departure Date</label>
+            <input class="form-input input-sm" id="depdate" type="date" placeholder="Departure Date">
+          </div>
+        </div>
+      </div>
+      <br>
+      <div class="card shadowContainer">
+        <div class="card-header">
+          <p> Select the cities you would want to travel to and let us plan the trip for you!</p>
+        </div>
+
+        <div class="card-body">
+          Select cities
+          <br>
+          <form autocomplete="off" id="citytable" class="form-group">
+            <div class="autocomplete form-group">
+              <div class="input-group">
+                <input class="form-input input-sm" id="cities0" type="text" style="margin-bottom: 5px;">
+
+
+                <div class="popover popover-right">
+                  <input class="btn btn-primary input-group-btn btn-sm" id="buttonCovidStatus0" value="Show covid status"></input>
+                  <div class="popover-container">
+                    <div class="card">
+                      <div class="card-header"><strong>Covid Data for this city</strong></div>
+                      <div class="card-body">
+                        <div class="loading"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </form>
+          <button class="btn btn-primary btn-sm" onclick="addRow('citytable')"><i class="fa fa-plus"></i> Add another
+            city</button>
+        </div>
+        <div class="card-footer">
+          <label class="form-checkbox">
+            <input type="checkbox" id="round_trip" name="round_trip" checked=""><i class="form-icon"></i> Round Trip
+          </label>
+          <button class="btn btn-primary btn-lg" onclick="sendRequest(0)">Show best route and hotels</button>
+        </div>
+      </div>
+      <br>
+      <br>
+    </div>
+    <div class="column col-3 col-lg-2 col-xs-0"></div>
+  </div>
+</div>
+<style>
+  .autocomplete {
+    /*the container must be positioned relative:*/
+    position: relative;
+    display: block;
+  }
+
+  .autocomplete-items {
+    position: absolute;
+    border: 1px solid #d4d4d4;
+    border-bottom: none;
+    border-top: none;
+    z-index: 99;
+    /*position the autocomplete items to be the same width as the container:*/
+    top: 100%;
+    left: 0;
+    right: 0;
+  }
+
+  .autocomplete-items div {
+    padding: 10px;
+    cursor: pointer;
+    background-color: #fff;
+    border-bottom: 1px solid #d4d4d4;
+  }
+
+  .autocomplete-items div:hover {
+    /*when hovering an item:*/
+    background-color: #e9e9e9;
+  }
+
+  .autocomplete-active {
+    /*when navigating through the items using the arrow keys:*/
+    background-color: #5755d9 !important;
+    color: #ffffff;
+  }
+</style>
+<script>
+  var currentFocus;
+
+  function autocomplete(inp) {
+    /*execute a function when someone writes in the text field:*/
+    inp.addEventListener("input", function (e) {
+      var a, b, i, val = this.value;
+      /*close any already open lists of autocompleted values*/
+      if (!val) {
+        return false;
+      }
+      // capitalise val for querying
+      val = val.charAt(0).toUpperCase() + val.slice(1);
+      
+      currentFocus = -1;
+      let input_text_box = this;
+      // ajax does not redirect
+      $.ajax({
+        url: '/city_name_suggestions',
+        type: 'POST',
+        data: JSON.stringify({
+          "input_val": val
+        }),
+        contentType: 'application/json; charset=utf-8',
+        dataType: 'json',
+        async: true,
+        success: function (response) {
+          closeAllLists();
+          arr = response["arr"]
+          var hello = arr
+          /*create a DIV element that will contain the items (values):*/
+          a = document.createElement("DIV");
+          a.setAttribute("id", input_text_box.id + "autocomplete-list");
+          a.setAttribute("class", "autocomplete-items");
+          /*append the DIV element as a child of the autocomplete container:*/
+          input_text_box.parentNode.appendChild(a);
+          /*for each item in the array...*/
+          for (i = 0; i < arr.length; i++) {
+            /*check if the item starts with the same letters as the text field value:*/
+            /*create a DIV element for each matching element:*/
+            b = document.createElement("DIV");
+            /*make the matching letters bold:*/
+            b.innerHTML = "<strong>" + arr[i][0].substr(0, val.length) + "</strong>";
+            b.innerHTML += arr[i][0].substr(val.length);
+            /*insert a input field that will hold the current array item's value:*/
+            b.innerHTML += "<input type='hidden' value='" + arr[i][0] + "'>";
+            /*execute a function when someone clicks on the item value (DIV element):*/
+            b.addEventListener("click", function (e) {
+              /*insert the value for the autocomplete text field:*/
+              let cityName = this.getElementsByTagName("input")[0].value;
+              input_text_box.value = cityName;
+              /*close the list of autocompleted values,
+              (or any other open lists of autocompleted values:*/
+              closeAllLists();
+
+              $.ajax({
+                url: '/get_covid_status',
+                type: 'POST',
+                data: JSON.stringify({
+                  "cityName": cityName
+                }),
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                async: true,
+                success: function (covidStatus) {
+                  let card = input_text_box.parentNode.children[1];
+                  if (card != null) {
+                    if (covidStatus != undefined) {
+                      formattedStatus = ""
+                      for (let [key, value] of Object.entries(covidStatus)) {
+                        if (value != null) {
+                          formattedStatus += `<strong>${key}:</strong> ${value}<br>`
+                        }
+                      }
+                      card.children[1].firstElementChild.children[1]
+                        .innerHTML = formattedStatus;
+                    } else {
+                      card.children[1].firstElementChild.children[1]
+                        .innerText = "Can't find covid data for this city in the database";
+                    }
+                  } else {
+
+                  }
+                  
+                  // console.log(covidStatus);
+                }
+              });
+
+            });
+            a.appendChild(b);
+          }
+        }
+      });
+    });
+
+    /*execute a function presses a key on the keyboard:*/
+    inp.addEventListener("keydown", function (e) {
+      var x = document.getElementById(this.id + "autocomplete-list");
+      if (x) x = x.getElementsByTagName("div");
+      if (e.keyCode == 40) {
+        /*If the arrow DOWN key is pressed,
+        increase the currentFocus variable:*/
+        currentFocus++;
+        /*and and make the current item more visible:*/
+        addActive(x);
+      } else if (e.keyCode == 38) { //up
+        /*If the arrow UP key is pressed,
+        decrease the currentFocus variable:*/
+        currentFocus--;
+        /*and and make the current item more visible:*/
+        addActive(x);
+      } else if (e.keyCode == 13) {
+        /*If the ENTER key is pressed, prevent the form from being submitted,*/
+        e.preventDefault();
+        if (currentFocus > -1) {
+          /*and simulate a click on the "active" item:*/
+          if (x) x[currentFocus].click();
+        }
+      }
+    });
+
+    function addActive(x) {
+      /*a function to classify an item as "active":*/
+      if (!x) return false;
+      /*start by removing the "active" class on all items:*/
+      removeActive(x);
+      if (currentFocus >= x.length) currentFocus = 0;
+      if (currentFocus < 0) currentFocus = (x.length - 1);
+      /*add class "autocomplete-active":*/
+      x[currentFocus].classList.add("autocomplete-active");
+    }
+
+    function removeActive(x) {
+      /*a function to remove the "active" class from all autocomplete items:*/
+      for (var i = 0; i < x.length; i++) {
+        x[i].classList.remove("autocomplete-active");
+      }
+    }
+  }
+
+  function closeAllLists(elmntWereIClicked) {
+    /*close all autocomplete lists in the document,
+    except the one passed as an argument:*/
+    var x = document.getElementsByClassName("autocomplete-items");
+    for (var i = 0; i < x.length; i++) {
+      if (elmntWereIClicked != x[i]) {
+        x[i].parentNode.removeChild(x[i]);
+      }
+    }
+  }
+
+  /*execute a function when someone clicks in the document:*/
+  document.addEventListener("click", function (e) {
+    closeAllLists(e.target);
+  });
+
+  autocomplete(document.getElementById("cities0"));
+  autocomplete(document.getElementById("From"));
+
+  function sendRequest(index) {
+    if (index == 0) {
+      var src_city = document.getElementById("From").value;
+      //console.log(src_city);
+      var dep_date = document.getElementById("depdate").value;
+      //console.log(dep_date);
+
+      let arr = []
+      let table = document.getElementById("citytable");
+      for (var i = 0; i < table.children.length; i++) {
+        var cityName = document.getElementById("cities" + i.toString()).value;
+        //var cityName = rows.item(i).cells.item(0).value;
+        arr.push({
+          "cityName": cityName,
+          "stayPeriod": 1
+        }); // stayPeriod will be ignored and will be taken as input in order cities page again
+      }
+
+      var round_trip = document.getElementById("round_trip").checked;
+
+      let travelObj = {
+        "sourceCity": src_city,
+        "departureDate": new Date(dep_date),
+        "citiesToVisit": arr,
+        "roundTrip": round_trip,
+        "chooseBestOrdering": false
+      } // chooseBestOrdering will be ignored in order cities page and will be taken as input in order cities page itself
+
+      // TODO: make checks while sending the data at frontend
+
+      post("/order_cities", {
+        "json": JSON.stringify(travelObj)
+      });
+    }
+  }
+
+  function addRow(tableID) {
+    var table = document.getElementById(tableID);
+    var rowCount = table.children.length;
+    let mainDivElement = document.createElement("div");
+    mainDivElement.classList = "autocomplete form-group";
+    let inputGroupDivElement = document.createElement("div");
+    inputGroupDivElement.classList = "input-group";
+    let inputElement = document.createElement("input");
+    inputElement.style = "margin-bottom: 5px;";
+    inputElement.classList = "form-input input-sm";
+    inputElement.id = "cities" + rowCount.toString();
+    inputElement.type = "text";
+    autocomplete(inputElement);
+    let popOverElement = document.createElement("div");
+    popOverElement.classList = "popover popover-right";
+    popOverElement.innerHTML = `<input class="btn btn-primary input-group-btn btn-sm" id="buttonCovidStatus${rowCount.toString()}" value="Show covid status"></input>
+      <div class="popover-container">
+        <div class="card">
+          <div class="card-header"><strong>Covid Data for this city</strong></div>
+          <div class="card-body">
+            <div class="loading"></div>
+          </div>
+        </div>
+      </div>`
+    inputGroupDivElement.append(inputElement);
+    inputGroupDivElement.append(popOverElement);
+    mainDivElement.append(inputGroupDivElement);
+    table.appendChild(mainDivElement);
+  }
+</script>
+
+{% endblock %}
