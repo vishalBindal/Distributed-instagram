@@ -7,9 +7,10 @@
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
-    <script src="https://kit.fontawesome.com/9ccf722acc.js" crossorigin="anonymous"></script>
+{#    <script src="https://kit.fontawesome.com/9ccf722acc.js" crossorigin="anonymous"></script>#}
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <title>{% block title %}{% endblock %}</title>
@@ -18,7 +19,7 @@
     <header class="navbar" style="padding: 10px !important;">
         <section class="navbar-section"></section>
         <sectifon class="navbar-center">
-            <a href="/" class="navbar-brand mr-2"><strong><i class="fas fa-plane-departure"></i> healTrip</strong></a>
+            <a href="/" class="navbar-brand mr-2"><strong><i class="fa-brands fa-instagram"></i> DistShare</strong></a>
         </sectifon>
         <section class="navbar-section">
             {% if not current_user.is_authenticated %}
@@ -48,7 +49,7 @@
                 <div class="column col-1">
                 </div>
                 <div class="column col-10">
-                    <p class="textCenter"> Designed and built by <span class="chip">Chirag Mohapatra</span>, <span class="chip">Vishal Bindal</span> and <span class="chip">Vishal Singh</span> for COL362(DBMS) <img style="vertical-align:middle;" src="{{ url_for('static', filename='images/IITDlogo.png') }}" width="40px">IIT DELHI. Licensed under the <a href="https://github.com/picturepan2/spectre/blob/master/LICENSE" target="_blank">MIT License</a>.</p>
+                    <p class="textCenter"> Designed and built by <span class="chip">Vishal Singh</span>, <span class="chip">Vishal Bindal</span> and <span class="chip">Chirag Mohapatra</span> for COL733(Cloud) <img style="vertical-align:middle;" src="{{ url_for('static', filename='images/IITDlogo.png') }}" width="40px">IIT DELHI. Licensed under the <a href="https://github.com/picturepan2/spectre/blob/master/LICENSE" target="_blank">MIT License</a>.</p>
                 </div>
                 <div class="column col-1"></div>
             </div>

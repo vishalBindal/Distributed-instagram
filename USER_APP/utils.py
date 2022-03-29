@@ -1,11 +1,19 @@
 import os
+import socket
 
-import Redis as Redis
+from redis as Redis
 from flask import flash, request, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 from config import ALLOWED_EXTENSIONS, app, MASTER_IP
 import requests
 import datetime
+
+
+def get_ip_address():
+    hostname = socket.gethostname()  # baadalvm
+    ip_address = socket.gethostbyname(hostname)  # Private IP of Node
+    return ip_address
+
 
 def allowed_file(filename: str):
     return '.' in filename and \
