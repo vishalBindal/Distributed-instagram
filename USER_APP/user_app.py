@@ -12,6 +12,7 @@ from pathlib import Path
 import socket
 from typing import Optional, List, Dict, Tuple
 from flask_login import LoginManager
+import urllib.parse
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -28,7 +29,7 @@ class UserMismatch(Exception):
 
 
 class User:
-  def __init__(self, username: str, key2_encrypt: str, m_key: str, key2_decrypt: str = ''):
+  def __init__(self, username: str, m_key: str, key2_encrypt: bytes, key2_decrypt: bytes = b''):
     self.username = username
     self.key2_encrypt = key2_encrypt
     self.m_key = m_key
@@ -42,8 +43,8 @@ class User:
     self.creation_time = datetime.now()
 
   @staticmethod
-  def log_user_in(username: str, key2_encrypt: str, m_key: str):
-    user = User(username=username, key2_encrypt=key2_encrypt, m_key=m_key)
+  def log_user_in(username: str, m_key: str, key2_encrypt: bytes):
+    user = User(username=username, m_key=m_key, key2_encrypt=key2_encrypt)
 
     # Checking if user in local storage is same as the one logging in
     user_local: User = User.load()
@@ -64,8 +65,8 @@ class User:
     user.save()
 
   @staticmethod
-  def create_new_user(username: str, key2_encrypt: str, key2_decrypt: str, m_key: str):
-    user = User(username, key2_encrypt, key2_decrypt, m_key)
+  def create_new_user(username: str, m_key: str, key2_encrypt: bytes, key2_decrypt: bytes):
+    user = User(username, m_key, key2_encrypt, key2_decrypt)
     user.save()
 
   @staticmethod
@@ -155,23 +156,30 @@ def register_post():
 
   key2_encrypt, key2_decrypt = generate_key_pair()
 
-  success, m_key = False, None
-  # TODO: Send request to master to create new user with username and password, and register key2_encrypt
-  # Send back success code and m_key
+  master_url = f'{MASTER_IP:8000}'
+  r = requests.post(url=urllib.parse.urljoin(master_url, 'new_user'), data={
+    'name': username,
+    'password': password,
+    'key2_encrypt': key2_encrypt,
+    'node_ip': get_ip_address()
+  })
 
-  try:
-    User.create_new_user(username=username, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt, m_key=m_key)
-    # User saved the user to local storage
-  except Exception as e:
-    render_template('error.html', error=str(e))
-
+  response = dict(r.text)
+  success: bool = response['success']
   if not success:
-    flash('Unsuccessful. Try again')
+    error_msg: str = response['error']
+    flash(f'Error: {error_msg} Unsuccessful. Try again')
     return render_template('register.html', username=username)
+  else:
+    try:
+      m_key: str = response['m_key']
+      User.create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
+      # User saved the user to local storage
+      return redirect(url_for('dashboard'))
+    except Exception as e:
+      flash(str(e))
+      return render_template('register.html', username=username)
 
-  # TODO: Write m_key and key2_encrypt and key2_decrypt to local storage
-
-  return redirect(url_for('dashboard'))
 
 
 @app.route("/")

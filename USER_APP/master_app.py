@@ -1,9 +1,14 @@
+import secrets
+import string
+
 from flask import Flask, redirect, url_for, render_template, request, flash, json
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime
 import redis
 from abc import ABC
 from config import MASTER_IP
+import bcrypt
+import time
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -16,7 +21,7 @@ class MasterRedis(ABC):
     MKEY2USER = 'm_key_to_username'
     USER2MKEY = 'username_to_m_key'
     USER2IMG_SUFFIX = '_img'
-    
+
     NODES = 'nodes'
     NODE2LOC = 'node-id_to_location'
     NODE2TS = 'node-id_to_timestamp'
@@ -31,18 +36,18 @@ class MasterRedis(ABC):
         # setup USERNAMES
         self.rds.sadd(self.USERNAMES, "foo")
         # Setup USER2PASS
-        self.rds.hset(self.USER2PASS, "foo", "foo") 
+        self.rds.hset(self.USER2PASS, "foo", "foo")
         # Setup USER2KEY2E
-        self.rds.hset(self.USER2KEY2E, "foo", "foo") 
+        self.rds.hset(self.USER2KEY2E, "foo", "foo")
         # Setup MKEY2USER
-        self.rds.hset(self.MKEY2USER, "foo", "foo") 
+        self.rds.hset(self.MKEY2USER, "foo", "foo")
         # Setup USER2MKEY
-        self.rds.hset(self.USER2MKEY, "foo", "foo") 
+        self.rds.hset(self.USER2MKEY, "foo", "foo")
 
         # Setup NODES
         self.rds.sadd(self.NODES, "foo")
         # Setup NODE2LOC
-        self.rds.hset(self.NODE2LOC, "foo", "foo") 
+        self.rds.hset(self.NODE2LOC, "foo", "foo")
         # Setup NODE2TS
         self.rds.hset(self.NOE2TS, "foo", "foo")
 
@@ -53,17 +58,21 @@ class MasterRedis(ABC):
 
     def add_node_to_image(self, node_id, image_hash):
         set_name = image_hash + self.IMG2NODE_SUFFIX
-        self.rds.sadd(set_name, node_id) 
-         
+        self.rds.sadd(set_name, node_id)
+
 
 mr = MasterRedis(MASTER_IP)
 
+
 def get_master_rds():
-	return MasterRedis(MASTER_IP)
+    return MasterRedis(MASTER_IP)
 
 
 def generate_mkey():
-    pass
+    # generating random string of length 512
+    key = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for i in range(512))
+    return key
+
 
 @app.route('/new_user', methods=['POST'])
 def new_user():
@@ -73,17 +82,16 @@ def new_user():
         password = data.password
         key2_encrypt = data.key2_encrypt
         node_ip = data.node_ip
-    except:
-        return {
-            'success': False
-        }
+    except Exception as e:
+        print(f'new_user: {e}')
+        return {'success': False, 'error_msg': 'Sent data is post request either incomplete or wrong'}
 
     if mr.rds.sismember(mr.USERNAMES, name):
-        return {
-            'success': False
-        }
-    
-    hashed_password = generate_password_hash(password, method='sha256')
+        return {'success': False, 'error_msg': f'username {name} is already registered'}
+
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password, salt)
+    # To check password: if bcrypt.checkpw(passwd, hashed): print("match")
 
     mr.rds.sadd(mr.USERNAMES, name)
     mr.rds.hset(mr.USER2PASS, name, hashed_password)
@@ -96,10 +104,8 @@ def new_user():
 
     mr.rds.sadd(mr.NODES, node_ip)
 
-    return {
-        'success': True,
-        'm_key': m_key
-    }
+    return {'success': True, 'm_key': m_key}
+
 
 @app.route('/login_user', methods=['POST'])
 def login_user():
@@ -112,13 +118,13 @@ def login_user():
             'success': False,
             'err': 0
         }
-    
+
     if not mr.rds.sismember(mr.USERNAMES, name):
         return {
             'success': False,
             'err': 1
         }
-    
+
     stored_password = mr.rds.hget(mr.USER2PASS, name)
     if not check_password_hash(stored_password, password):
         return {
@@ -140,4 +146,3 @@ if __name__ == "__main__":
     mr.initialize()
 	# if not first time then remove this
     app.run(debug=True, port=5022)
-    
