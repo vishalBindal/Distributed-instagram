@@ -1,8 +1,11 @@
 from flask import Flask, redirect, url_for, render_template, request, flash, json
 from datetime import date, datetime
+import requests
+from config import MASTER_IP
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
+
 
 @app.route("/login")
 def login(name=''):
@@ -12,18 +15,23 @@ def login(name=''):
 def login_post():
 	name = request.form.get('name')
 	password = request.form.get('password')
-	remember = request.form.get('remember')
 	
-	m_key, key2_encrypt, error_code = None, None, None
-	# TODO: Send request to master to get user if exists
+	r = requests.post(url=MASTER_IP, data={
+		'name': name,
+		'password': password
+	})
+	response = dict(r.text)
+	
+	if not response['success']:
+		if response['err'] == 1:
+			flash('Account not found. Please register first.')
+			return redirect(url_for('login', name=name))
 
-	if error_code == 1:
-		flash('Account not found. Please register first.')
-		return redirect(url_for('login', name=name))
+		elif response['err'] == 2:
+			flash('Incorrect password.')
+			return redirect(url_for('login', name=name))
 
-	elif error_code == 2:
-		flash('Incorrect password.')
-		return redirect(url_for('login', name=name))
+	m_key, key2_encrypt = response['m_key'], response['key2_encrypt']
 
 	# TODO: Write m_key and key2_encrypt to local storage
 
@@ -44,13 +52,6 @@ def register_post():
 	username = request.form.get('username')
 	password = request.form.get('password')
 	
-	already_exists = False
-	# TODO: Send request to master to check if user exists
-
-	if already_exists:
-		flash('An account with given username already exists. Please pick a new username')
-		return redirect(url_for('register'))
-
 	key2_encrypt, key2_decrypt = generate_key_pair()
 	success, m_key = False, None
 	# TODO: Send request to master to create new user with username and password, and register key2_encrypt
