@@ -86,9 +86,6 @@ class User:
     with open(LOCAL_USER_PKL_PATH, 'wb') as handle:
       pickle.dump(self, handle)
 
-  def set_user_name(self):
-    pass
-
   def get_creation_time(self):
     # dd/mm/YY H:M:S
     dt_string = self.creation_time.strftime("%d/%m/%Y %H:%M:%S")
