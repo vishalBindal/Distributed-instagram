@@ -33,7 +33,7 @@ class MasterRedis(ABC):
   USER2PENDING_SUFFIX = '_pending'
 
   def __init__(self, master_ip):
-    self.rds = redis.Redis(host=master_ip, decode_responses=True, socket_timeout=5)
+    self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
 
   def initialize(self):
     self.rds.flushall()
@@ -96,7 +96,11 @@ def generate_mkey():
 
 @app.route('/new_user', methods=['POST'])
 def new_user():
-  data = request.get_json()
+  print(str(request))
+  print(type(request))
+  data = request.json
+  print(request.data)
+  print(str(data))
   try:
     name = data.name
     password = data.password

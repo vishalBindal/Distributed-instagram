@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import pickle
 
@@ -36,7 +37,7 @@ class User:
 
   def __init__(self, username: str = '', m_key: str = '', key2_encrypt: bytes = b'', key2_decrypt: bytes = b''):
     self.loaded = False
-    self.rds = redis.Redis(host=self.get_user_ip_address(), decode_responses=True, socket_timeout=5)
+    self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
     self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': datetime.now()}
     self.key2_decrypt_following: Dict[str, bytes] = dict()
@@ -223,14 +224,14 @@ def register_post():
 
   key2_encrypt, key2_decrypt = generate_key_pair()
 
-  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
+  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
     'name': username,
     'password': password,
     'key2_encrypt': key2_encrypt,
     'node_ip': get_ip_address()
   })
 
-  response = dict(r.text)
+  response = json.loads(r.content)
   success: bool = response['success']
   if not success:
     error_msg: str = response['error']
