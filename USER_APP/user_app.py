@@ -37,7 +37,7 @@ class User:
 
   def __init__(self, username: str = '', m_key: str = '', key2_encrypt: bytes = b'', key2_decrypt: bytes = b''):
     self.loaded = False
-    self.rds = redis.Redis(host=self.get_user_ip_address(), decode_responses=True, socket_timeout=5)
+    self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
     self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': datetime.now()}
     self.key2_decrypt_following: Dict[str, bytes] = dict()
