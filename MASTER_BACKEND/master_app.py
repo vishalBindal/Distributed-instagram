@@ -336,6 +336,18 @@ def get_node_for_image():
   image_owner_set = image_hash + mr.IMG2USER_SUFFIX # Name of set of users containing the image
 
   targetname = None # target username from which file should be accessed 
+
+  cluster = mr.rds.hget(mr.USER2CLUS, username)
+  owners = list(mr.rds.smembers(image_owner_set))
+
+  for owner in owners:
+    if(mr.rds.hget(mr.USER2CLUS, owner) == cluster):
+      targetname = owner
+      break
+
+  if(targetname == None):
+    targetname = owners[0]
+
   return {
     'success': True,
     'name': targetname
