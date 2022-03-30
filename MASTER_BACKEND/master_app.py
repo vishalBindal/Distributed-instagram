@@ -4,15 +4,10 @@ import secrets
 import string
 
 from flask import Flask, redirect, url_for, render_template, request, flash, json, send_from_directory
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime
 import redis
 from abc import ABC
 
-from werkzeug.utils import secure_filename
-
-from MASTER_BACKEND.utils import generate_mkey
-from USER_APP.utils import allowed_file
 from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS
 import bcrypt
 import time
