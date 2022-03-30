@@ -1,8 +1,11 @@
 import os
+
+import Redis as Redis
 from flask import flash, request, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
-from config import ALLOWED_EXTENSIONS, app
-
+from config import ALLOWED_EXTENSIONS, app, MASTER_IP
+import requests
+import datetime
 
 def allowed_file(filename: str):
     return '.' in filename and \
@@ -23,11 +26,25 @@ def upload_pic():
             flash('No selected file')
             return redirect(request.url)
         if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
+            filename_prefix = str(datetime.datetime.now().date()) + '_' + \
+                              str(datetime.datetime.now().time()).replace(':', '.') + str(current_username)
+            filename = filename_prefix + secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
             # Process File
-
+            # TODO: Do this asyncly on celery
+            r = requests.post(url=MASTER_IP, data={'my_ip': my_ip})
+            response = r.text
+            try:
+                nd_ids = dict(response)
+                e_blog_data = encrypt(data=file, using=key2_encypt)
+                for no_id in nd_ids:
+                    rds: Redis = get_rds_connection(no_id)  # self.conns[i]
+                    n = rds.hset(name='images', key=filename, value=e_blog_data)
+                    assert n == 1
+            except Exception as e:
+                print(e)
+                return e
 
             return redirect(url_for('download_file', name=filename))
     return '''
