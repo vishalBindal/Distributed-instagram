@@ -96,7 +96,10 @@ def generate_mkey():
 
 @app.route('/new_user', methods=['POST'])
 def new_user():
-  data = request.get_json()
+  print(str(request))
+  print(type(request))
+  data = request.json
+  print(str(data))
   try:
     name = data.name
     password = data.password

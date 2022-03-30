@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import pickle
 
@@ -223,14 +224,14 @@ def register_post():
 
   key2_encrypt, key2_decrypt = generate_key_pair()
 
-  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
+  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
     'name': username,
     'password': password,
     'key2_encrypt': key2_encrypt,
     'node_ip': get_ip_address()
   })
 
-  response = dict(r.text)
+  response = json.loads(r.content)
   success: bool = response['success']
   if not success:
     error_msg: str = response['error']
