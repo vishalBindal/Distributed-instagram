@@ -1,8 +1,8 @@
 from celery import Celery
 from sklearn.cluster import KMeans
 import numpy as np
-from MASTER_BACKEND.master_app import get_master_rds
-from MASTER_BACKEND.config import NUM_CLUSTERS, KMEANS_INTERVAL
+from master_app import get_master_rds
+from config import NUM_CLUSTERS, KMEANS_INTERVAL
 import time
 
 app = Celery('tasks', backend='redis://localhost', broker='pyamqp://guest@localhost:5672//')

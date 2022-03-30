@@ -16,6 +16,9 @@ import urllib
 from utils import get_node_url
 import random
 
+from tasks import run_kmeans
+from celery import group
+
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
 
@@ -374,5 +377,8 @@ def record_image_upload():
 
 if __name__ == "__main__":
   mr.initialize()
+  
+  group(run_kmeans.s()).apply_async()
+  
   logging.basicConfig(level=logging.DEBUG)
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)
