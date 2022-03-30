@@ -9,6 +9,9 @@ from abc import ABC
 from config import MASTER_IP
 import bcrypt
 import time
+import requests
+import urllib
+from utils import get_node_url
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -152,7 +155,7 @@ def login_user():
 def heartbeat():
   data = request.form
   try:
-    mkey = data['mkey']
+    mkey = data['m_key']
     location = data['location']
     timestamp = data['timestamp']
   except Exception as e:
@@ -167,6 +170,88 @@ def heartbeat():
     'success': True
   }
 
+@app.route('/followers')
+def followers(name):
+  set_name = name + mr.USER2FOLLOWERS_SUFFIX
+  try:
+    followers = mr.rds.smembers(set_name)
+    return {
+      'followers': list(followers)
+    }
+  except:
+    return {
+      'followers': [] 
+    }
+
+@app.route('/following')
+def following(name):
+  set_name = name + mr.USER2FOLLOWING_SUFFIX
+  try:
+    following = mr.rds.smembers(set_name)
+    return {
+      'following': list(following)
+    }
+  except:
+    return {
+      'following': [] 
+    }
+
+@app.route('/pending_requests')
+def pending_requests(name):
+  set_name = name + mr.USER2PENDING_SUFFIX
+  try:
+    pending_requests = mr.rds.smembers(set_name)
+    return {
+      'pending_requests': list(pending_requests)
+    }
+  except:
+    return {
+      'pending_requests': [] 
+    }
+
+@app.route('/accept_request', methods=['POST'])
+def accept_request():
+  data = request.form
+  try:
+    m_key = data['m_key'],
+    username2 = data['username2'],
+    key2_decrypt = data['key2_decrypt']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
+  
+  username = mr.rds.hget(mr.MKEY2USER, m_key)
+  mr.accept_follow_request(username2, username)
+
+  node_ip = mr.rds.hget(mr.USER2IP, username)
+  r = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'), data={
+        'username': username,
+        'key2_decrypt': key2_decrypt
+      })
+  response = dict(r.text)
+  if not response['success']:
+    pass
+  # TODO: make the above fault-tolerant
+
+  return {
+    'success': True
+  }
+
+@app.route('/send_request', methods=['POST'])
+def send_request():
+  data = request.form
+  try:
+    m_key = data['m_key'], # to identify the user
+    username2 = data['username2'] # to whom the user wants to follow
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
+  
+  username = mr.rds.hget(mr.MKEY2USER, m_key)
+  mr.add_follow_request(username, username2)
+  return {
+    'success': True
+  }
 
 if __name__ == "__main__":
   mr.initialize()
