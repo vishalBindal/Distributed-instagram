@@ -257,4 +257,4 @@ def index():
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
-  app.run(host='0.0.0.0', debug=True, port=8000, threading=True)
+  app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)
