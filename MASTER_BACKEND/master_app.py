@@ -96,16 +96,12 @@ def generate_mkey():
 
 @app.route('/new_user', methods=['POST'])
 def new_user():
-  print(str(request))
-  print(type(request))
-  data = request.json
-  print(request.data)
-  print(str(data))
+  data = request.form
   try:
-    name = data.name
-    password = data.password
-    key2_encrypt = data.key2_encrypt
-    node_ip = data.node_ip
+    name = data['name']
+    password = data['password']
+    key2_encrypt = data['key2_encrypt']
+    node_ip = data['node_ip']
   except Exception as e:
     print(f'new_user: {e}')
     return {'success': False, 'error_msg': 'Sent data is post request either incomplete or wrong'}
@@ -114,7 +110,7 @@ def new_user():
     return {'success': False, 'error_msg': f'username {name} is already registered'}
 
   salt = bcrypt.gensalt()
-  hashed_password = bcrypt.hashpw(password, salt)
+  hashed_password = bcrypt.hashpw(password.encode(), salt)
   # To check password: if bcrypt.checkpw(passwd, hashed): print("match")
 
   mr.rds.sadd(mr.USERNAMES, name)
