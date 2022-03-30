@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pickle
 
-from flask import Flask, redirect, url_for, render_template, request, flash
+import rsa as rsa
+from flask import Flask, redirect, url_for, render_template, request, flash, send_from_directory
 from datetime import datetime
 import requests
+from werkzeug.utils import secure_filename
 
-from utils import get_ip_address, generate_key_pair
+from utils import get_ip_address, generate_key_pair, allowed_file
 from config import MASTER_URL
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -59,7 +62,7 @@ class User:
     self.load()
     return self.user_data['m_key']
 
-  def key2_encrypt(self):
+  def get_key2_encrypt(self):
     self.load()
     return self.user_data['key2_encrypt']
 
@@ -278,7 +281,7 @@ def profile(username):
 def profile():
   user = User()
   user.load()
-  if user.is_logged_in():
+  if not user.is_logged_in():
     flash('You are not logged in. Log in to view dashboard')
     return render_template('login.html', user=user)
   else:
@@ -293,6 +296,56 @@ def index():
 # TODO: define more functions as given in doc
 
 
+@app.route('/upload_pic', methods=['POST'])
+def upload_pic():
+  user = User()
+  user.load()
+  if not user.is_logged_in():
+    flash('You are not logged in. Log in to view dashboard')
+    return render_template('login.html', user=user)
+  else:
+    # check if the post request has the file part
+    if 'file' not in request.files:
+      flash('No file part')
+      return redirect(request.url)
+    file = request.files['file']
+    # If the user does not select a file, the browser submits an
+    # empty file without a filename.
+    if file.filename == '':
+      flash('No selected file')
+      return redirect(request.url)
+    if file and allowed_file(file.filename):
+      filename_prefix = str(datetime.now().date()) + '_' + \
+                        str(datetime.now().time()).replace(':', '.') + str(user.get_username())
+      filename = filename_prefix + secure_filename(file.filename)
+      file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+      # Process File
+      # TODO: Do this asyncly on celery
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'), data={'node_ip': user.get_user_ip_address()})
+      response = r.text
+      try:
+        nd_ids = dict(response)
+        e_blog_data = rsa.encrypt(data=file, pub_key=user.get_key2_encrypt().encode())
+        for no_id in nd_ids:
+          rds: Redis = get_rds_connection(no_id)  # self.conns[i]
+          n = rds.hset(name='images', key=filename, value=e_blog_data)
+          assert n == 1
+      except Exception as e:
+        print(e)
+        return e
+
+      return redirect(url_for('download_file', name=filename))
+
+@app.route('/uploads/<name>')
+def download_file(name):
+  return send_from_directory(app.config["UPLOAD_FOLDER"], name)
+
+
+
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
+  app.add_url_rule(
+    "/user_data/<name>", endpoint="download_file", build_only=True
+  )
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)

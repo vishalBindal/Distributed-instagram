@@ -5,3 +5,4 @@ Flask-Login~=0.5.0
 Werkzeug~=2.0.0
 pycryptodomex~=3.14.1
 bcrypt~=3.2.0
+rsa~=4.8

@@ -39,20 +39,26 @@
           </div>
         </div>
         <br>
-        <button class='btn show-modal'>Delete my account</button>
+        <button class='btn show-modal'>Post a new image</button>
         <div class="modal modal-sm">
           <div class="modal-overlay"></div>
           <div class="modal-container">
             <div class="modal-header">
               <div class="close-modal btn btn-clear float-right"></div>
-              <div class="text-bold modal-title">Delete account</div>
+              <div class="text-bold modal-title">Post Image</div>
             </div>
             <div class="modal-body">
               <div class="content">
-                Are you sure?
+                Select image
               </div>
             </div>
             <div class="modal-footer">
+              <form action="/upload_pic" method="POST"
+                    enctype="multipart/form-data">
+                <input type="file" name="file"/>
+                <input type="submit"/>
+              </form>
+
               <a href='/delete_user' class='btn'>Yes, delete my account</a>
             </div>
           </div>
