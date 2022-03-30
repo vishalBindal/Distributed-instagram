@@ -312,6 +312,52 @@ def get_nearby_nodes():
 
   # Return list[str]: list of usernames where image should be stored
 
+
+@app.route('/get_images')
+def get_images():
+  username = request.args['name']
+  set_name = username + mr.USER2IMG_SUFFIX
+  all_images = mr.rds.smembers(set_name)
+  return {
+    'images': list(all_images)
+  }
+
+@app.route('/get_node_for_image', methods=['POST'])
+def get_node_for_image():
+  data = request.form
+  try:
+    m_key = data['m_key']
+    image_hash = data['image_hash']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
+
+  username = mr.rds.hget(mr.MKEY2USER, m_key) # User wanting the image
+  image_owner_set = image_hash + mr.IMG2USER_SUFFIX # Name of set of users containing the image
+
+  targetname = None # target username from which file should be accessed 
+  return {
+    'success': True,
+    'name': targetname
+  }
+
+@app.route('/record_image_upload', methods=['POST'])
+def record_image_upload():
+  data = request.form
+  try:
+    m_key = data['m_key']
+    image_hash = data['image_hash']
+    target_user = data['target_user']
+    timestamp = data['timestamp']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
+
+  username = mr.rds.hget(mr.MKEY2USER, m_key)
+  mr.add_image_to_user(username, image_hash, timestamp)
+  mr.add_user_to_image(target_user, image_hash)
+
+
 if __name__ == "__main__":
   mr.initialize()
   logging.basicConfig(level=logging.DEBUG)
