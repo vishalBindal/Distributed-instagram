@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 import requests
 import datetime
 from Cryptodome.PublicKey import RSA
-import rsa
+from Cryptodome.Cipher import PKCS1_OAEP
 
 def get_ip_address():
   hostname = socket.gethostname()  # baadalvm
@@ -32,12 +32,13 @@ def generate_key_pair() -> Tuple[str, str]:
 
 key2_encrypt, key2_decrypt = generate_key_pair()
 
-with open('/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/IITDlogo.png', 'rb') as original_file:
-    original = original_file.read()
+original = open('/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/IITDlogo.png', 'rb').read()
 
-encrypted = RSA.encrypt(original, key2_encrypt)
+cipher_rsa = PKCS1_OAEP.new(RSA.import_key(key2_encrypt.encode()))
+encrypted = cipher_rsa.encrypt(original)
 
-decrypted = RSA.decrypt(encrypted, key2_decrypt)
+cipher_rsa = PKCS1_OAEP.new(RSA.import_key(key2_decrypt.encode()))
+decrypted = cipher_rsa.decrypt(encrypted, key2_decrypt)
 
 with open('/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/decrypted.png', 'wb') as decrypted_file:
     decrypted_file.write(decrypted)

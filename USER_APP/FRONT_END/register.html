@@ -16,12 +16,7 @@
       <form method='POST' action='/register'>
           <div class="form-group">
             <label class="form-label" for="username">Username</label>
-            <input class="form-input" type="text" name="username" id="username" placeholder="..." value="{{username}}">
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label" for="email">Email</label>
-            <input class="form-input" type="email" name="email" id="email" placeholder="..." value="{{email}}">
+            <input class="form-input" type="text" name="username" id="username" placeholder="..." value="{{user.get_username()}}">
           </div>
 
           <div class="form-group">

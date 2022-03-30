@@ -6,6 +6,9 @@ import os
 import pickle
 
 import rsa as rsa
+from Cryptodome.Cipher import AES, PKCS1_OAEP
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Random import get_random_bytes
 from flask import Flask, redirect, url_for, render_template, request, flash, send_from_directory
 from datetime import datetime
 import requests
@@ -23,6 +26,8 @@ app.config['SECRET_KEY'] = 'we are the champions'
 
 LOCAL_USER_PKL_PATH = './user_data/user.pkl'
 
+
+# TODO: Make all imp post request in celery to keep trying again
 
 class UserMismatch(Exception):
   pass
@@ -46,6 +51,7 @@ class User:
   USER_DATA_KEY = 'user_data'
   DECRYPT_FOLLOWING_KEY = 'decrypt_following_key'
   required_keys = ['username', 'm_key', 'key2_encrypt', 'key2_decrypt', 'creation_time']
+  IMAGE_DATA = 'image_data'
 
   def __init__(self, username: str = '', m_key: str = '', key2_encrypt: str = '', key2_decrypt: str = ''):
     self.loaded = False
@@ -81,7 +87,7 @@ class User:
     self.rds.hset(name=self.DECRYPT_FOLLOWING_KEY, key=username2, value=following_decrypt_key)
 
   def is_logged_in(self) -> bool:
-    return self.get_username() == ''
+    return not self.get_username() == ''
 
   @staticmethod
   def get_user_ip_address():
@@ -137,6 +143,9 @@ class User:
   def save(self):
     self.loaded = True
     self.rds.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
+    for key in self.user_data:
+      if self.user_data[key] == '':
+        raise Exception('Can\'t save. The local object is not populated fully.')
     self.rds.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
     if len(self.key2_decrypt_following) > 0:
       self.rds.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
@@ -153,30 +162,44 @@ class User:
     # If master is down user keeps trying thorugh celery task
 
     # ------ put this inside celery task and starts async ------
-    r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'reset_following'), data={'m_key': self.m_key})
+    r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'reset_following'), data={'m_key': self.user_data['m_key']})
     # Following will be empty since I don't have any ones key2_decrypt. So, you will need to follow everyone again
     # TODO: Send request to recover key2_decrypt from followers asynchronously
     # Keep trying to recover for some time (Say 5 minutes for the purpose of this assignment)
     # But is it safe to ask for decrypt key ?
     self.save()
 
-  @staticmethod
-  def log_user_in(username: str, m_key: str, key2_encrypt: str):
-    user = User(username=username, m_key=m_key, key2_encrypt=key2_encrypt)
+  def is_consistent_with_rds(self):
+    rds_user_data = self.rds.hgetall(name=self.USER_DATA_KEY)
+    for key in self.required_keys:
+      if key in rds_user_data and rds_user_data[key] != self.user_data[key]:
+        return False
+    return True
 
-    # Checking if user in local storage is same as the one logging in
-    c = user.load()
-    if c > 0:
-      params_len = len(locals())
-      if c != len(user.required_keys) - len(locals()):
-        raise UserMismatch
-    else:
-      user.try_recovery()
+  def add_image_data(self, unique_hash: str, encoded_info: str):
+    self.rds.hset(name=self.IMAGE_DATA, key=unique_hash, value=encoded_info)
+    pass
 
-  @staticmethod
-  def create_new_user(username: str, m_key: str, key2_encrypt: str, key2_decrypt: str):
-    user = User(username, m_key, key2_encrypt, key2_decrypt)
+
+def log_user_in(username: str, m_key: str, key2_encrypt: str):
+  params_len = len(locals())
+  user = User(username=username, m_key=m_key, key2_encrypt=key2_encrypt)
+
+  # Checking if user in local storage is same as the one logging in
+  c = user.load()
+  if c == 0:
+    # No data in local
     user.save()
+    user.try_recovery()
+  if c > 0:
+    if c != len(user.required_keys) - len(locals()):
+      raise UserMismatch
+  return user
+
+
+def create_new_user(username: str, m_key: str, key2_encrypt: str, key2_decrypt: str):
+  user = User(username, m_key, key2_encrypt, key2_decrypt)
+  user.save()
 
 
 @app.route('/err', methods=['GET'])
@@ -186,7 +209,9 @@ def err():
 
 @app.route("/login")
 def login(name=''):
-  return render_template('login.html', name=name)
+  user = User()
+  user.load()
+  return render_template('login.html', user=user, name=name)
 
 
 @app.route('/follow_accepted', methods=['POST'])
@@ -225,19 +250,20 @@ def login_post():
   m_key, key2_encrypt = response['m_key'], response['key2_encrypt']
 
   try:
-    user = User(username=name, key2_encrypt=key2_encrypt, m_key=m_key)
-  except UserMismatch as e:
-    msg = 'The user object in local storage is not the same as the one used to log in. Please either remove the ' \
-          'local storage or double-check that the data transferred from the previous device is accurate.'
-    return render_template('error.html', error=msg)
+    log_user_in(username=name, key2_encrypt=key2_encrypt, m_key=m_key)
+  except UserMismatch:
+    flash('The user object in local storage is not the same as the one used to log in. Please either remove the local '
+          'storage or double-check that the data transferred from the previous device is accurate.')
+    return render_template('login.html', user=User())
 
-  # TODO: html page for dashboard
-  return redirect(url_for('dashboard'))
+  return redirect(url_for('profile'))
 
 
 @app.route("/register")
 def register(username=''):
-  return render_template('register.html', username=username)
+  user = User()
+  user.load()
+  return render_template('register.html', user=user)
 
 
 @app.route("/register", methods=['POST'])
@@ -257,22 +283,22 @@ def register_post():
   response = json.loads(r.content)
   success: bool = response['success']
   if not success:
-    error_msg: str = response['error']
+    error_msg: str = response['error_msg']
     flash(f'Error: {error_msg} Unsuccessful. Try again')
-    return render_template('register.html', username=username)
+    return render_template('register.html', user=User())
   else:
     try:
       m_key: str = response['m_key']
-      User.create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
+      create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
       # User saved the user to local storage
-      return redirect(url_for('dashboard'))
+      return redirect(url_for('profile'))
     except Exception as e:
       flash(str(e))
-      return render_template('register.html', username=username)
+      return render_template('register.html', user=User())
 
 
 @app.route("/profile/<username>")
-def profile(username):
+def profile2(username):
   user = User(username=username)
   return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
 
@@ -282,7 +308,7 @@ def profile():
   user = User()
   user.load()
   if not user.is_logged_in():
-    flash('You are not logged in. Log in to view dashboard')
+    flash('You are not logged in. Log in to view profile')
     return render_template('login.html', user=user)
   else:
     return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
@@ -322,25 +348,65 @@ def upload_pic():
 
       # Process File
       # TODO: Do this asyncly on celery
-      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'), data={'node_ip': user.get_user_ip_address()})
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
+                        data={'node_ip': user.get_user_ip_address()})
       response = r.text
+
+      # TODO: check if file is actually bytes o.w load from filepath
       try:
         nd_ids = dict(response)
-        e_blog_data = rsa.encrypt(data=file, pub_key=user.get_key2_encrypt().encode())
-        for no_id in nd_ids:
-          rds: Redis = get_rds_connection(no_id)  # self.conns[i]
-          n = rds.hset(name='images', key=filename, value=e_blog_data)
-          assert n == 1
+
+        # https://stackoverflow.com/questions/28426102/python-crypto-rsa-public-private-key-with-large-file
+        aes_key = get_random_bytes(16)
+        cipher = AES.new(aes_key, AES.MODE_EAX)
+        data = open(file.filename, 'rb').read()
+        ciphertext, tag = cipher.encrypt_and_digest(data)
+
+        # Now aes_key using encrypt key
+        cipher_rsa = PKCS1_OAEP.new(RSA.import_key(user.get_key2_encrypt().encode()))
+        encrypted_aes_key = cipher_rsa.encrypt(aes_key)
+
+        encoded_info_dict = {'nonce': cipher.nonce, 'ciphertext': ciphertext, 'tag': tag,
+                             'encrypted_aes_key': encrypted_aes_key}
+        encoded_info = pickle.dumps(encoded_info_dict)
+
+        for nd_id in nd_ids:
+          nd_url = f'http://{nd_id}:8000'
+          r = requests.post(url=urllib.parse.urljoin(nd_url, 'add_image_data'), data={
+            'encoded_info': encoded_info
+          })
+          response = json.loads(r.content)
+
+          if not response['success']:
+            logging.debug(f'failed writing on node {nd_url}')
       except Exception as e:
         print(e)
         return e
 
       return redirect(url_for('download_file', name=filename))
 
+
+@app.route('/add_image_data')
+def add_image_data():
+  data = request.form
+  try:
+    unique_hash = data['unique_hash']
+    encoded_info = data['encoded_info']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False}
+  user = User()
+  user.load()
+  if not user.is_logged_in():
+    return {'success': False, 'err': 'user is not logged in on this node'}
+  else:
+    user.add_image_data(unique_hash=unique_hash, encoded_info=encoded_info)
+    return {'success': True}
+
+
 @app.route('/uploads/<name>')
 def download_file(name):
   return send_from_directory(app.config["UPLOAD_FOLDER"], name)
-
 
 
 if __name__ == "__main__":

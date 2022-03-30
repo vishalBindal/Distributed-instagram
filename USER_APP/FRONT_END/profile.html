@@ -65,7 +65,7 @@
         </div>
         <div class='divider'></div>
         <h3>Your Followers</h3>
-        {% if len(followers) == 0 %}
+        {% if followers|length == 0 %}
           <div class="empty">
             <div class="empty-icon">
               <i class="fas fa-plane-slash"></i>
@@ -100,7 +100,7 @@
 
 
         <h3>You are Following</h3>
-        {% if len(following) == 0 %}
+        {% if following|length == 0 %}
           <div class="empty">
             <div class="empty-icon">
               <i class="fas fa-plane-slash"></i>
