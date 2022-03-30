@@ -238,8 +238,11 @@ def accept_request():
         'username': username,
         'key2_decrypt': key2_decrypt
       })
-  response = dict(r.text)
-  if not response['success']:
+  try:
+    response = json.loads(r.content)
+    if not response['success']:
+      pass
+  except:
     pass
   # TODO: make the above fault-tolerant
 
