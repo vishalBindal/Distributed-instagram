@@ -1,4 +1,5 @@
 import logging
+from operator import ne
 import secrets
 import string
 
@@ -6,12 +7,13 @@ from flask import Flask, redirect, url_for, render_template, request, flash, jso
 from datetime import date, datetime
 import redis
 from abc import ABC
-from config import MASTER_IP
+from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS
 import bcrypt
 import time
 import requests
 import urllib
 from utils import get_node_url
+import random
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -29,6 +31,9 @@ class MasterRedis(ABC):
   USER2LOC = 'username_to_location'
   USER2TS = 'username_to_timestamp'
   IMG2USER_SUFFIX = '_user'
+
+  USER2CLUS = 'username_to_cluster'
+  CLUS2USERS_PREFIX = 'cluster_to_usernames'
 
   USER2FOLLOWERS_SUFFIX = '_followers'
   USER2FOLLOWING_SUFFIX = '_following'
@@ -51,6 +56,12 @@ class MasterRedis(ABC):
     # Setup USER2MKEY
     self.rds.hset(self.USER2MKEY, "foo", "foo")
 
+    #setup USER2CLUS
+    self.rds.hset(self.USER2CLUS, "foo", "foo")
+
+    for i in range(NUM_CLUSTERS):
+      self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
+
     # Setup USER2IP
     self.rds.hset(self.USER2IP, "foo", "foo")
     # Setup USER2LOC
@@ -61,7 +72,7 @@ class MasterRedis(ABC):
   def add_image_to_user(self, username, image_hash, time_of_upload):
     # User "username" has uploaded image to her profile
     sorted_set_name = username + self.USER_IMG_SUFFIX
-    self.rds.zadd(sorted_set_name, {image_hash, time_of_upload})
+    self.rds.zadd(sorted_set_name, {time_of_upload, image_hash})
 
   def add_user_to_image(self, username, image_hash):
     # Image is stored at node corresponding to username
@@ -267,9 +278,37 @@ def send_request():
   }
 
 
-@app.route('nearby_nodes')
+@app.route('/nearby_nodes')
 def get_nearby_nodes():
   username = request.args['name']
+  try:
+    cluster = mr.rds.hget(mr.USER2CLUS, username)
+    users_in_cluster = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
+    nearby_nodes = []
+    clusters_added = set()
+    clusters_added.add(cluster)
+
+    while len(nearby_nodes) < NUM_REPLICATIONS//5:
+      ind = random.rand() % len(users_in_cluster)
+      if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
+        nearby_nodes.append(users_in_cluster[ind])
+
+    while len(nearby_nodes) < NUM_REPLICATIONS:
+      ind = random.rand() % NUM_CLUSTERS
+      if ind not in clusters_added:
+        users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
+        ind1 = random.rand() % len(users_in_cluster_temp)
+        nearby_nodes.append(users_in_cluster_temp[ind])
+        clusters_added.add(ind)
+
+    return {
+      'nearby_nodes' : nearby_nodes
+    }
+
+  except Exception as e:
+    return {
+      'nearby_nodes' : []
+    }
 
   # Return list[str]: list of usernames where image should be stored
 
