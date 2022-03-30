@@ -12,7 +12,7 @@
     <img src = "{{ url_for('static', filename='iphone_insta.svg') }}" alt="My Happy SVG" width="100%"/>
     <br>
     <br>
-    {% if not current_user.is_authenticated %}
+    {% if not user.is_logged_in() %}
     <a href="/login"><button class='btn btn-primary btn-lg'>Login</button></a>
     <a href="/register"><button class='btn btn-lg'>Register</button></a>
     {% else %}

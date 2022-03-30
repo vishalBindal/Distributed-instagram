@@ -9,10 +9,9 @@ from datetime import datetime
 import requests
 
 from utils import get_ip_address, generate_key_pair
-from config import MASTER_IP, MASTER_URL
+from config import MASTER_URL
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from flask_login import LoginManager
 import urllib.parse
 import redis
 
@@ -20,10 +19,6 @@ app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END
 app.config['SECRET_KEY'] = 'we are the champions'
 
 LOCAL_USER_PKL_PATH = './user_data/user.pkl'
-
-# Setting up auth
-login_manager = LoginManager()
-login_manager.init_app(app)
 
 
 class UserMismatch(Exception):
@@ -39,7 +34,7 @@ class User:
     self.loaded = False
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
     self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
-                                      'key2_decrypt': key2_decrypt, 'creation_time': datetime.now()}
+                                      'key2_decrypt': key2_decrypt, 'creation_time': self.get_current_time_str()}
     self.key2_decrypt_following: Dict[str, bytes] = dict()
 
   def get_username(self):
@@ -58,11 +53,18 @@ class User:
     self.load()
     return self.user_data['key2_decrypt']
 
+  def get_creation_time(self) -> str:
+    self.load()
+    return self.user_data['creation_time']
+
   def add_following(self, username2: str, following_decrypt_key: bytes):
     """This function will be called after someone accepts your follow request. That person who accept will send decrypt
     key to master and master will send it to you through a post request and then this function will be called."""
     self.key2_decrypt_following[username2] = following_decrypt_key
     self.rds.hset(name=self.DECRYPT_FOLLOWING_KEY, key=username2, value=following_decrypt_key)
+
+  def is_logged_in(self) -> bool:
+    return self.get_username() == ''
 
   @staticmethod
   def get_user_ip_address():
@@ -123,12 +125,14 @@ class User:
     self.loaded = True
     self.rds.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
     self.rds.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
-    self.rds.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
+    if len(self.key2_decrypt_following) > 0:
+      self.rds.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
 
-  def get_creation_time_str(self) -> str:
+  @staticmethod
+  def get_current_time_str() -> str:
     # dd/mm/YY H:M:S
-    self.load()
-    dt_string = self.user_data['creation_time'].strftime("%d/%m/%Y %H:%M:%S")
+    dt = datetime.now()
+    dt_string = dt.strftime("%d/%m/%Y %H:%M:%S")
     return dt_string
 
   def try_recovery(self):
@@ -162,13 +166,6 @@ class User:
     user.save()
 
 
-@login_manager.user_loader
-def load_user(user_id):
-  user = User()
-  user.load()
-  return user
-
-
 @app.route('/err', methods=['GET'])
 def err():
   return render_template('error.html', error='toto')
@@ -184,11 +181,11 @@ def login_post():
   name = request.form.get('name')
   password = request.form.get('password')
 
-  r = requests.post(url=MASTER_URL, data={
+  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'login_user'), data={
     'name': name,
     'password': password
   })
-  response = dict(r.text)
+  response = json.loads(r.content)
 
   if not response['success']:
     if response['err'] == 1:
@@ -250,7 +247,13 @@ def register_post():
 
 @app.route("/dashboard")
 def dashboard():
-  return render_template('profile.html', user_email='fefe', user_uname='fefe')
+  user = User()
+  user.load()
+  if user.is_logged_in():
+    flash('You are not logged in. Log in to view dashboard')
+    return render_template('login.html', user=user)
+  else:
+    return render_template('profile.html', user=user, followers=user.get_followers())
 
 
 @app.route("/")

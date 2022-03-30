@@ -22,14 +22,11 @@
             <a href="/" class="navbar-brand mr-2"><strong><i class="fa-brands fa-instagram"></i> DistShare</strong></a>
         </sectifon>
         <section class="navbar-section">
-            {% if not current_user.is_authenticated %}
+            {% if not user.is_logged_in() %}
             <a href="/login" class="btn btn-link">Login</a>
             <a href="/register" class="btn btn-link">Register</a>
             {% endif %}
-            {% if current_user.is_authenticated %}
-            {% if current_user.is_admin %}
-            <a href='/admin' class='btn btn-link'>Admin</a>
-            {% endif %}
+            {% if user.is_logged_in() %}
             <a href='/home' class='btn btn-link'>Home</a>
             <a href="/profile" class="btn btn-link">Profile</a>
             <a href="/logout" class="btn btn-link">Logout</a>

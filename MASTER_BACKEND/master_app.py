@@ -7,6 +7,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime
 import redis
 from abc import ABC
+
+from MASTER_BACKEND.utils import generate_mkey
 from config import MASTER_IP
 import bcrypt
 import time
