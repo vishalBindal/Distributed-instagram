@@ -2,10 +2,16 @@ import logging
 import secrets
 import string
 
-from flask import Flask, redirect, url_for, render_template, request, flash, json
+from flask import Flask, redirect, url_for, render_template, request, flash, json, send_from_directory
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime
 import redis
 from abc import ABC
+
+from werkzeug.utils import secure_filename
+
+from MASTER_BACKEND.utils import generate_mkey
+from USER_APP.utils import allowed_file
 from config import MASTER_IP
 import bcrypt
 import time
@@ -137,10 +143,10 @@ def login_user():
     password = data['password']
   except Exception as e:
     logging.debug(e)
-    return {'success': False, 'err': 0}
+    return {'success': False, 'err': str(e)}
 
   if not mr.rds.sismember(mr.USERNAMES, name):
-    return {'success': False, 'err': 1}
+    return {'success': False, 'err': f'no user {name}'}
 
   hashed_password = mr.rds.hget(mr.USER2PASS, name)
   if not bcrypt.checkpw(password.encode(), hashed_password.encode()):
@@ -317,6 +323,7 @@ def record_image_upload():
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.add_image_to_user(username, image_hash, timestamp)
   mr.add_user_to_image(target_user, image_hash)
+
 
 
 if __name__ == "__main__":

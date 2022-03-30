@@ -1,114 +1,156 @@
 {% extends "base.html" %}
 {% block title %}Profile{% endblock %}
 {% block content %}
-<div class="container">
-  <div class="columns">
-    <div class="column col-4 col-lg-3 col-xs-0"></div>
-    <div class="column col-4 col-lg-6 col-xs-12">
-      <ul class="breadcrumb">
-        <li class="breadcrumb-item">
-          <a href="/">Home</a>
-        </li>
-        <li class="breadcrumb-item">
-          <a href="/profile">Profile</a>
-        </li>
-      </ul>
-      <h1>Profile</h1>
-      {% with messages = get_flashed_messages() %}
-        {% if messages %}
-          <div class="toast toast-error">
-            {{ messages[0] }}
+  <div class="container">
+    <div class="columns">
+      <div class="column col-4 col-lg-3 col-xs-0"></div>
+      <div class="column col-4 col-lg-6 col-xs-12">
+        <ul class="breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="/">Home</a>
+          </li>
+          <li class="breadcrumb-item">
+            <a href="/profile">Profile</a>
+          </li>
+        </ul>
+        <h1>Profile</h1>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="toast toast-error">
+              {{ messages[0] }}
+            </div>
+          {% endif %}
+        {% endwith %}
+        <br>
+        <div class="tile tile-centered">
+          <div class="tile-content">
+            <div class="tile-title text-bold">Username</div>
+            <div class="tile-subtitle">{{ user.get_username() }}</div>
           </div>
-        {% endif %}
-      {% endwith %}
-      <br>
-      <div class="tile tile-centered">
-        <div class="tile-content">
-          <div class="tile-title text-bold">E-mail</div>
-          <div class="tile-subtitle">{{ user_email }}</div>
-        </div>
-        <div class="tile-content">
-          <div class="tile-title text-bold">Username</div>
-          <div class="tile-subtitle">{{ user_uname }}</div>
-        </div>
-        <div class="tile-action">
-          <a href='/edit_profile'>
-          <button class="btn btn-link btn-action btn-lg tooltip tooltip-left" data-tooltip="Edit user details"><i class="icon icon-edit"></i></button>
-          </a>
-        </div>
-      </div>
-      <br>
-      <button class='btn show-modal'>Delete my account</button>
-      <div class="modal modal-sm">
-        <div class="modal-overlay"></div>
-        <div class="modal-container">
-          <div class="modal-header">
-            <div class="close-modal btn btn-clear float-right"></div>
-            <div class="text-bold modal-title">Delete account</div>
+          <div class="tile-content">
+            <div class="tile-title text-bold">Created</div>
+            <div class="tile-subtitle">{{ user.get_creation_time() }}</div>
           </div>
-          <div class="modal-body">
-            <div class="content">
-              Are you sure?
+          <div class="tile-action">
+            <a href='/edit_profile'>
+              <button class="btn btn-link btn-action btn-lg tooltip tooltip-left" data-tooltip="Edit user details"><i
+                      class="icon icon-edit"></i></button>
+            </a>
+          </div>
+        </div>
+        <br>
+        <button class='btn show-modal'>Post a new image</button>
+        <div class="modal modal-sm">
+          <div class="modal-overlay"></div>
+          <div class="modal-container">
+            <div class="modal-header">
+              <div class="close-modal btn btn-clear float-right"></div>
+              <div class="text-bold modal-title">Post Image</div>
+            </div>
+            <div class="modal-body">
+              <div class="content">
+                Select image
+              </div>
+            </div>
+            <div class="modal-footer">
+              <form action="/upload_pic" method="POST"
+                    enctype="multipart/form-data">
+                <input type="file" name="file"/>
+                <input type="submit"/>
+              </form>
+
+              <a href='/delete_user' class='btn'>Yes, delete my account</a>
             </div>
           </div>
-          <div class="modal-footer">
-            <a href='/delete_user' class='btn'>Yes, delete my account</a>
+        </div>
+        <div class='divider'></div>
+        <h3>Your Followers</h3>
+        {% if followers|length == 0 %}
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-plane-slash"></i>
+            </div>
+            <p class="empty-title h5">You don't have any followers</p>
+            <p class="empty-subtitle">Explore users to follow</p>
+            <div class="empty-action">
+              <a href="/home">
+                <button class="btn btn-primary">Go to home page</button>
+              </a>
+            </div>
           </div>
-        </div>
+        {% endif %}
+        {% for follower in followers %}
+          <div class="card shadowContainer">
+            <div class="card-header">
+            </div>
+            <div class="card-body">
+              <div class="tile tile-centered">
+                <div class="tile-icon">
+                  <i class="fas fa-suitcase-rolling"></i>
+                </div>
+                <div class="tile-content">
+                  <div class="tile-title text-bold">{{ follower }}</div>
+                  <div class="tile-subtitle text-bold"><a href="/profile/{{ follower }}"> Show Profile </a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <br>
+        {% endfor %}
+
+
+        <h3>You are Following</h3>
+        {% if following|length == 0 %}
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-plane-slash"></i>
+            </div>
+            <p class="empty-title h5">You are not following anyone</p>
+            <p class="empty-subtitle">Explore users to follow</p>
+            <div class="empty-action">
+              <a href="/all_users">
+                <button class="btn btn-primary">See users on out platforms</button>
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        {% for following_user in following %}
+          <div class="card shadowContainer">
+            <div class="card-header">
+            </div>
+            <div class="card-body">
+              <div class="tile tile-centered">
+                <div class="tile-icon">
+                  <i class="fas fa-suitcase-rolling"></i>
+                </div>
+                <div class="tile-content">
+                  <div class="tile-title text-bold">{{ following_user }}</div>
+                  <div class="tile-subtitle text-bold"><a href="/profile/{{ follower }}"> Show Profile </a></div>
+                </div>
+                <div class="tile-action">
+                  <a href='/unfollow/{{ follower }}'>
+                    <button class="btn btn-primary">Unfollow</button>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <br>
+        {% endfor %}
       </div>
-      <div class='divider'></div>
-      <h3>Your bookings</h3>
-      {% if num_bookings == 0 %}
-      <div class="empty">
-        <div class="empty-icon">
-          <i class="fas fa-plane-slash"></i>
-        </div>
-        <p class="empty-title h5">You haven't done any bookings yet</p>
-        <p class="empty-subtitle">Click the button below to book your first trip!</p>
-        <div class="empty-action">
-          <a href="/home">
-          <button class="btn btn-primary">Start a heal trip!</button>
-          </a>
-        </div>
-      </div>
-      {% endif %}
-      {% for booking in bookings %}
-      <div class="card shadowContainer">
-        <div class="card-header">
-        </div>
-        <div class="card-body">
-      <div class="tile tile-centered">
-        <div class="tile-icon">
-            <i class="fas fa-suitcase-rolling"></i>
-        </div>
-        <div class="tile-content">
-          <div class="tile-title text-bold">{{booking['dep_date']}}</div>
-          <div class='tile-subtitle'>From {{booking['src_airport'][2]}}, {{booking['src_airport'][0]}}</div>
-          <div class="tile-subtitle">{{booking['num_flights']}} flights, {{booking['num_hotels']}} hotels</div>
-        </div>
-        <div class="tile-action">
-          <a href='/booking_details/{{ booking['id'] }}'>
-          <button class="btn btn-primary">View details</button>
-          </a>
-        </div>
-      </div>
-      </div></div>
-      <br>
-      {% endfor %}
+      <div class="column col-4 col-lg-3 col-xs-0"></div>
     </div>
-    <div class="column col-4 col-lg-3 col-xs-0"></div>
   </div>
-</div>
 
-<script>
-$(".close-modal").on("click", function() {
-  $(this).closest('.modal').removeClass('active');
-});
+  <script>
+      $(".close-modal").on("click", function () {
+          $(this).closest('.modal').removeClass('active');
+      });
 
-$(".show-modal").on("click", function() {
-  $('.modal').addClass('active');
-});
-</script>
+      $(".show-modal").on("click", function () {
+          $('.modal').addClass('active');
+      });
+  </script>
 
 {% endblock %}
 
