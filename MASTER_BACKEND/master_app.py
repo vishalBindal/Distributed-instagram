@@ -90,10 +90,10 @@ def get_master_rds():
   return MasterRedis(MASTER_IP)
 
 
-def generate_mkey():
+def generate_mkey(username):
   # generating random string of length 512
   key = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for i in range(512))
-  return key
+  return key + username
 
 
 @app.route('/new_user', methods=['POST'])
@@ -119,7 +119,7 @@ def new_user():
   mr.rds.hset(mr.USER2PASS, name, hashed_password)
   mr.rds.hset(mr.USER2KEY2E, name, key2_encrypt)
 
-  m_key = generate_mkey()
+  m_key = generate_mkey(name)
 
   mr.rds.hset(mr.MKEY2USER, m_key, name)
   mr.rds.hset(mr.USER2MKEY, name, m_key)
@@ -171,7 +171,8 @@ def heartbeat():
   }
 
 @app.route('/followers')
-def followers(name):
+def followers():
+  name = request.args['name']
   set_name = name + mr.USER2FOLLOWERS_SUFFIX
   try:
     followers = mr.rds.smembers(set_name)
@@ -184,7 +185,8 @@ def followers(name):
     }
 
 @app.route('/following')
-def following(name):
+def following():
+  name = request.args['name']
   set_name = name + mr.USER2FOLLOWING_SUFFIX
   try:
     following = mr.rds.smembers(set_name)
@@ -196,8 +198,16 @@ def following(name):
       'following': [] 
     }
 
-@app.route('/pending_requests')
-def pending_requests(name):
+@app.route('/pending_requests', methods=['POST'])
+def pending_requests():
+  data = request.form
+  try:
+    m_key = data['m_key']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
+  
+  name = mr.rds.hget(mr.MKEY2USER, m_key)
   set_name = name + mr.USER2PENDING_SUFFIX
   try:
     pending_requests = mr.rds.smembers(set_name)
@@ -213,8 +223,8 @@ def pending_requests(name):
 def accept_request():
   data = request.form
   try:
-    m_key = data['m_key'],
-    username2 = data['username2'],
+    m_key = data['m_key']
+    username2 = data['username2']
     key2_decrypt = data['key2_decrypt']
   except Exception as e:
     logging.debug(e)
@@ -241,7 +251,7 @@ def accept_request():
 def send_request():
   data = request.form
   try:
-    m_key = data['m_key'], # to identify the user
+    m_key = data['m_key'] # to identify the user
     username2 = data['username2'] # to whom the user wants to follow
   except Exception as e:
     logging.debug(e)
