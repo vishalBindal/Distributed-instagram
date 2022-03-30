@@ -3,7 +3,6 @@ import secrets
 import string
 
 from flask import Flask, redirect, url_for, render_template, request, flash, json
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime
 import redis
 from abc import ABC
@@ -140,8 +139,8 @@ def login_user():
   if not mr.rds.sismember(mr.USERNAMES, name):
     return {'success': False, 'err': 1}
 
-  stored_password = mr.rds.hget(mr.USER2PASS, name)
-  if not check_password_hash(stored_password, password):
+  hashed_password = mr.rds.hget(mr.USER2PASS, name)
+  if not bcrypt.checkpw(password, hashed_password):
     return {'success': False, 'err': 2}
 
   m_key = mr.rds.hget(mr.USER2MKEY, name)
