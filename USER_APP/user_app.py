@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+import logging
 import pickle
 
-from flask import Flask, redirect, url_for, render_template, request, flash, json
+from flask import Flask, redirect, url_for, render_template, request, flash
 from datetime import datetime
 import requests
 
 from utils import get_ip_address, generate_key_pair
-from config import MASTER_IP
+from config import MASTER_IP, MASTER_URL
 from pathlib import Path
-import socket
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Any
 from flask_login import LoginManager
 import urllib.parse
+import redis
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -29,72 +30,112 @@ class UserMismatch(Exception):
 
 
 class User:
-  def __init__(self, username: str, m_key: str, key2_encrypt: bytes, key2_decrypt: bytes = b''):
-    self.username = username
-    self.key2_encrypt = key2_encrypt
-    self.m_key = m_key
-    self.key2_decrypt = key2_decrypt
+  USER_DATA_KEY = 'user_data'
+  required_keys = ['username', 'm_key', 'key2_encrypt', 'key2_decrypt', 'creation_time']
 
-    self.followers: List[str] = []
-    self.following: List[str] = []
+  def __init__(self, username: str = '', m_key: str = '', key2_encrypt: bytes = b'', key2_decrypt: bytes = b''):
+    self.loaded = False
+    self.rds = redis.Redis(host=self.get_user_ip_address(), decode_responses=True, socket_timeout=5)
+    self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
+                                      'key2_decrypt': key2_decrypt, 'creation_time': datetime.now()}
     self.key2_decrypt_following: Dict[str, str] = dict()
 
-    self.ip_address = get_ip_address()
-    self.creation_time = datetime.now()
+  def get_username(self):
+    self.load()
+    return self.user_data['username']
+
+  def m_key(self):
+    self.load()
+    return self.user_data['m_key']
+
+  def key2_encrypt(self):
+    self.load()
+    return self.user_data['key2_encrypt']
+
+  def get_key2_decrypt(self):
+    self.load()
+    return self.user_data['key2_decrypt']
+
+  @staticmethod
+  def get_user_ip_address():
+    return get_ip_address()
+
+  def get_followers(self):
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_followers'), params={'name': self.get_username()})
+    data = r.json()
+    followers: List[str] = data['followers']
+    return followers
+
+  def get_following(self):
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_following'), params={'name': self.get_username()})
+    data = r.json()
+    following: List[str] = data['following']
+    return following
+
+  def load(self) -> int:
+    """returns number of elements loaded from redis. If redis didn't have the data then it would return 0"""
+    if not self.loaded:
+      # Populating self
+      user_data = self.rds.hgetall(name=self.USER_DATA_KEY)
+      for key in self.required_keys:
+        if key not in user_data:
+          logging.debug('Inconsistent data in redis')
+          return 0
+      c = 0
+      for key in self.required_keys:
+        if self.user_data[key] != user_data[key]:
+          c += 1
+      self.user_data = user_data
+      self.loaded = True
+      return c
+
+      # TODO: load key2_decrypt_following
+
+  def save(self):
+    self.loaded = True
+    self.rds.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
+
+  def get_creation_time_str(self) -> str:
+    # dd/mm/YY H:M:S
+    self.load()
+    dt_string = self.user_data['creation_time'].strftime("%d/%m/%Y %H:%M:%S")
+    return dt_string
+
+  def try_recovery(self):
+    # TODO: Do this recovery in celery so as to make it fault tolerant
+    # If master is down user keeps trying thorugh celery task
+
+    # ------ put this inside celery task and starts async ------
+    r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'reset_following'), data={'m_key': self.m_key})
+    # Following will be empty since I don't have any ones key2_decrypt. So, you will need to follow everyone again
+    # TODO: Send request to recover key2_decrypt from followers asynchronously
+    # Keep trying to recover for some time (Say 5 minutes for the purpose of this assignment)
+    # But is it safe to ask for decrypt key ?
+    self.save()
 
   @staticmethod
   def log_user_in(username: str, m_key: str, key2_encrypt: bytes):
     user = User(username=username, m_key=m_key, key2_encrypt=key2_encrypt)
 
     # Checking if user in local storage is same as the one logging in
-    user_local: User = User.load()
-    if user_local is not None:
-      if user_local.username != username or user_local.key2_encrypt != key2_encrypt or user_local.m_key != m_key:
+    c = user.load()
+    if c > 0:
+      params_len = len(locals())
+      if c != len(user.required_keys) - len(locals()):
         raise UserMismatch
     else:
-      # We don't have the user in local storage. Try to recover the user
-      profile_data = requests.get(url=MASTER_IP + ':8000/profile_data', params={'name': username}).json()
-      user.followers = profile_data['followers']
-      user.following = []  # Following will not be empty since I don't have any ones key2_decrypt. So, you will
-      # need to follow everyone again
-
-      # TODO: Send request to recover key2_decrypt from followers asynchronously
-      # Keep trying to recover for some time (Say 5 minutes for the purpose of this assignment)
-      # But is it safe to ask for decrypt key ?
-
-    user.save()
+      user.try_recovery()
 
   @staticmethod
   def create_new_user(username: str, m_key: str, key2_encrypt: bytes, key2_decrypt: bytes):
     user = User(username, m_key, key2_encrypt, key2_decrypt)
     user.save()
 
-  @staticmethod
-  def load() -> Optional[User]:
-    if not Path(LOCAL_USER_PKL_PATH).is_file():
-      return None
-
-    with open(LOCAL_USER_PKL_PATH, 'rb') as handle:
-      user = pickle.load(handle)
-
-    if not isinstance(user, User):
-      return None
-
-    return user
-
-  def save(self):
-    with open(LOCAL_USER_PKL_PATH, 'wb') as handle:
-      pickle.dump(self, handle)
-
-  def get_creation_time(self):
-    # dd/mm/YY H:M:S
-    dt_string = self.creation_time.strftime("%d/%m/%Y %H:%M:%S")
-    return dt_string
-
 
 @login_manager.user_loader
 def load_user(user_id):
-  user = User.load()
+  user = User()
+  user.load()
   return user
 
 
@@ -113,7 +154,7 @@ def login_post():
   name = request.form.get('name')
   password = request.form.get('password')
 
-  r = requests.post(url=MASTER_IP, data={
+  r = requests.post(url=MASTER_URL, data={
     'name': name,
     'password': password
   })
@@ -176,7 +217,6 @@ def register_post():
     except Exception as e:
       flash(str(e))
       return render_template('register.html', username=username)
-
 
 
 @app.route("/")
