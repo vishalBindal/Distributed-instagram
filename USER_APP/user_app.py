@@ -300,7 +300,7 @@ def register_post():
 @app.route("/profile/<username>")
 def profile2(username):
   user = User(username=username)
-  return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
+  return render_template('other_profile.html', user=user, followers=user.get_followers(), following=user.get_following())
 
 
 @app.route("/profile")
@@ -316,7 +316,9 @@ def profile():
 
 @app.route("/")
 def index():
-  return render_template('front_page.html')
+  user = User()
+  user.load()
+  return render_template('front_page.html',user=user)
 
 
 # TODO: define more functions as given in doc
