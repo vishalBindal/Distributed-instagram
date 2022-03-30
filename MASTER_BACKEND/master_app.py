@@ -266,6 +266,13 @@ def send_request():
     'success': True
   }
 
+
+@app.route('nearby_nodes')
+def get_nearby_nodes():
+  username = request.args['name']
+
+  # Return list[str]: list of usernames where image should be stored
+
 if __name__ == "__main__":
   mr.initialize()
   logging.basicConfig(level=logging.DEBUG)
