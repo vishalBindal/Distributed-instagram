@@ -31,6 +31,7 @@ class UserMismatch(Exception):
 
 class User:
   USER_DATA_KEY = 'user_data'
+  DECRYPT_FOLLOWING_KEY = 'decrypt_following_key'
   required_keys = ['username', 'm_key', 'key2_encrypt', 'key2_decrypt', 'creation_time']
 
   def __init__(self, username: str = '', m_key: str = '', key2_encrypt: bytes = b'', key2_decrypt: bytes = b''):
@@ -38,13 +39,13 @@ class User:
     self.rds = redis.Redis(host=self.get_user_ip_address(), decode_responses=True, socket_timeout=5)
     self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': datetime.now()}
-    self.key2_decrypt_following: Dict[str, str] = dict()
+    self.key2_decrypt_following: Dict[str, bytes] = dict()
 
   def get_username(self):
     self.load()
     return self.user_data['username']
 
-  def m_key(self):
+  def get_m_key(self):
     self.load()
     return self.user_data['m_key']
 
@@ -56,21 +57,48 @@ class User:
     self.load()
     return self.user_data['key2_decrypt']
 
+  def add_following(self, username2: str, following_decrypt_key: bytes):
+    """This function will be called after someone accepts your follow request. That person who accept will send decrypt
+    key to master and master will send it to you through a post request and then this function will be called."""
+    self.key2_decrypt_following[username2] = following_decrypt_key
+    self.rds.hset(name=self.DECRYPT_FOLLOWING_KEY, key=username2, value=following_decrypt_key)
+
   @staticmethod
   def get_user_ip_address():
     return get_ip_address()
 
   def get_followers(self):
-    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_followers'), params={'name': self.get_username()})
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'followers'), params={'name': self.get_username()})
     data = r.json()
     followers: List[str] = data['followers']
     return followers
 
   def get_following(self):
-    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_following'), params={'name': self.get_username()})
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'following'), params={'name': self.get_username()})
     data = r.json()
     following: List[str] = data['following']
     return following
+
+  def get_pending_requests(self):
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'pending_requests'), params={'name': self.get_username()})
+    data = r.json()
+    pending_requests: List[str] = data['following']
+    return pending_requests
+
+  def accept_request(self, username2: str) -> bool:
+    if self.get_key2_decrypt() == '':
+      logging.debug('Currently the key2_decrypt has not been recovered')
+      return False
+    else:
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'accept_request'), data={
+        'm_key': self.get_m_key(),
+        'username2': username2,
+        'key2_decrypt': self.get_key2_decrypt()
+      })
+      response = dict(r.text)
+      if not response['success']:
+        logging.debug(response['err'])
+        return False
 
   def load(self) -> int:
     """returns number of elements loaded from redis. If redis didn't have the data then it would return 0"""
@@ -87,13 +115,14 @@ class User:
           c += 1
       self.user_data = user_data
       self.loaded = True
+      self.key2_decrypt_following = self.rds.hgetall(self.DECRYPT_FOLLOWING_KEY)
       return c
-
-      # TODO: load key2_decrypt_following
 
   def save(self):
     self.loaded = True
+    self.rds.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
     self.rds.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
+    self.rds.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
 
   def get_creation_time_str(self) -> str:
     # dd/mm/YY H:M:S
