@@ -370,6 +370,9 @@ def upload_pic():
                              'encrypted_aes_key': encrypted_aes_key}
         encoded_info = pickle.dumps(encoded_info_dict)
 
+        # Decrypt example: https://pycryptodome.readthedocs.io/en/latest/src/examples.html
+        # Decrypt aes_key using rsa and then decrypt image using that aes_key
+
         for nd_id in nd_ids:
           nd_url = f'http://{nd_id}:8000'
           r = requests.post(url=urllib.parse.urljoin(nd_url, 'add_image_data'), data={
