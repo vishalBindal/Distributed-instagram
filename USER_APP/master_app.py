@@ -22,10 +22,14 @@ class MasterRedis(ABC):
     USER2MKEY = 'username_to_m_key'
     USER2IMG_SUFFIX = '_img'
 
-    NODES = 'nodes'
-    NODE2LOC = 'node-id_to_location'
-    NODE2TS = 'node-id_to_timestamp'
-    IMG2NODE_SUFFIX = '_node'
+    USER2IP = 'username_to_ip'
+    USER2LOC = 'username_to_location'
+    USER2TS = 'username_to_timestamp'
+    IMG2USER_SUFFIX = '_user'
+
+    USER2FOLLOWERS_SUFFIX = '_followers'
+    USER2FOLLOWING_SUFFIX = '_following'
+    USER2PENDING_SUFFIX = '_pending'
 
     def __init__(self, master_ip):
         self.rds = redis.Redis(host=master_ip, decode_responses=True, socket_timeout=5)
@@ -44,21 +48,36 @@ class MasterRedis(ABC):
         # Setup USER2MKEY
         self.rds.hset(self.USER2MKEY, "foo", "foo")
 
-        # Setup NODES
-        self.rds.sadd(self.NODES, "foo")
-        # Setup NODE2LOC
-        self.rds.hset(self.NODE2LOC, "foo", "foo")
-        # Setup NODE2TS
-        self.rds.hset(self.NOE2TS, "foo", "foo")
+        # Setup USER2IP
+        self.rds.hset(self.USER2IP, "foo", "foo")
+        # Setup USER2LOC
+        self.rds.hset(self.USER2LOC, "foo", "foo")
+        # Setup USER2TS
+        self.rds.hset(self.USER2TS, "foo", "foo")
 
     def add_image_to_user(self, username, image_hash, time_of_upload):
-        # add image_hash to username's sorted set
+        # User "username" has uploaded image to her profile
         sorted_set_name = username + self.USER_IMG_SUFFIX
         self.rds.zadd(sorted_set_name, {image_hash, time_of_upload})
 
-    def add_node_to_image(self, node_id, image_hash):
-        set_name = image_hash + self.IMG2NODE_SUFFIX
-        self.rds.sadd(set_name, node_id)
+    def add_user_to_image(self, username, image_hash):
+        # Image is stored at node corresponding to username
+        set_name = image_hash + self.IMG2USER_SUFFIX
+        self.rds.sadd(set_name, username)
+
+    def add_follow_request(self, user_follower, user_profile):
+        # "user_follower" wants to follow "user_profile"
+        set_name = user_profile + self.USER2PENDING_SUFFIX
+        self.rds.sadd(set_name, user_follower)
+
+    def accept_follow_request(self, user_follower, user_profile):
+        # "user_profile" accepts "user_follower"'s follow request
+        set_name = user_profile + self.USER2PENDING_SUFFIX
+        self.rds.srem(set_name, user_follower)
+        set_name = user_profile + self.USER2FOLLOWERS_SUFFIX
+        self.rds.sadd(set_name, user_follower)
+        set_name = user_follower + self.USER2FOLLOWING_SUFFIX
+        self.rds.sadd(set_name, user_profile)
 
 
 mr = MasterRedis(MASTER_IP)
@@ -102,7 +121,7 @@ def new_user():
     mr.rds.hset(mr.MKEY2USER, m_key, name)
     mr.rds.hset(mr.USER2MKEY, name, m_key)
 
-    mr.rds.sadd(mr.NODES, node_ip)
+    mr.rds.hset(mr.USER2IP, name, node_ip)
 
     return {'success': True, 'm_key': m_key}
 
@@ -140,6 +159,27 @@ def login_user():
         'key2_encrypt': key2_encrypt
     }
 
+
+@app.route('/heartbeat', methods=['POST'])
+def heartbeat():
+    data = request.get_json()
+    try:
+        mkey = data.mkey
+        location = data.location
+        timestamp = data.timestamp
+    except:
+        return {
+            'success': False
+        }
+    username = mr.rds.hget(mr.MKEY2USER, mkey)
+    cur_timestamp = mr.rds.hget(mr.USER2TS, username)
+
+    if timestamp > cur_timestamp:
+        mr.rds.hset(mr.USER2LOC, username, location)
+        mr.rds.hset(mr.USER2TS, username, timestamp)
+    return {
+        'success': True
+    }
 
 
 if __name__ == "__main__":
