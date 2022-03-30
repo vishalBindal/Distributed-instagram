@@ -129,10 +129,10 @@ def new_user():
 
 @app.route('/login_user', methods=['POST'])
 def login_user():
-  data = request.get_json()
+  data = request.form
   try:
-    name = data.name
-    password = data.password
+    name = data['name']
+    password = data['password']
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
@@ -151,11 +151,11 @@ def login_user():
 
 @app.route('/heartbeat', methods=['POST'])
 def heartbeat():
-  data = request.get_json()
+  data = request.form
   try:
-    mkey = data.mkey
-    location = data.location
-    timestamp = data.timestamp
+    mkey = data['mkey']
+    location = data['location']
+    timestamp = data['timestamp']
   except Exception as e:
     logging.log(e)
     return {'success': False}
