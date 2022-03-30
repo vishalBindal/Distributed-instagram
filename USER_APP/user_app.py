@@ -223,8 +223,7 @@ def register_post():
 
   key2_encrypt, key2_decrypt = generate_key_pair()
 
-  master_url = f'{MASTER_IP:8000}'
-  r = requests.post(url=urllib.parse.urljoin(master_url, 'new_user'), data={
+  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
     'name': username,
     'password': password,
     'key2_encrypt': key2_encrypt,
@@ -258,4 +257,4 @@ def index():
 
 if __name__ == "__main__":
   # if not first time then remove this
-  app.run(debug=True, port=8000)
+  app.run(host='0.0.0.0', debug=True, port=8000, threading=True)
