@@ -140,7 +140,7 @@ def login_user():
     return {'success': False, 'err': 1}
 
   hashed_password = mr.rds.hget(mr.USER2PASS, name)
-  if not bcrypt.checkpw(password, hashed_password):
+  if not bcrypt.checkpw(password.encode(), hashed_password.encode()):
     return {'success': False, 'err': 2}
 
   m_key = mr.rds.hget(mr.USER2MKEY, name)
@@ -156,12 +156,11 @@ def heartbeat():
     location = data['location']
     timestamp = data['timestamp']
   except Exception as e:
-    logging.log(e)
+    logging.debug(e)
     return {'success': False}
+  
   username = mr.rds.hget(mr.MKEY2USER, mkey)
-  cur_timestamp = mr.rds.hget(mr.USER2TS, username)
-
-  if timestamp > cur_timestamp:
+  if not mr.rds.hexists(mr.USER2TS, username) or int(timestamp) > int(mr.rds.hget(mr.USER2TS, username)):
     mr.rds.hset(mr.USER2LOC, username, location)
     mr.rds.hset(mr.USER2TS, username, timestamp)
   return {
