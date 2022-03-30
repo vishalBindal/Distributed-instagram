@@ -1,3 +1,4 @@
+import logging
 import secrets
 import string
 
@@ -132,32 +133,20 @@ def login_user():
   try:
     name = data.name
     password = data.password
-  except:
-    return {
-      'success': False,
-      'err': 0
-    }
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
 
   if not mr.rds.sismember(mr.USERNAMES, name):
-    return {
-      'success': False,
-      'err': 1
-    }
+    return {'success': False, 'err': 1}
 
   stored_password = mr.rds.hget(mr.USER2PASS, name)
   if not check_password_hash(stored_password, password):
-    return {
-      'success': False,
-      'err': 2
-    }
+    return {'success': False, 'err': 2}
 
   m_key = mr.rds.hget(mr.USER2MKEY, name)
   key2_encrypt = mr.rds.hget(mr.USER2KEY2E, name)
-  return {
-    'success': True,
-    'm_key': m_key,
-    'key2_encrypt': key2_encrypt
-  }
+  return {'success': True, 'm_key': m_key, 'key2_encrypt': key2_encrypt}
 
 
 @app.route('/heartbeat', methods=['POST'])
@@ -167,10 +156,9 @@ def heartbeat():
     mkey = data.mkey
     location = data.location
     timestamp = data.timestamp
-  except:
-    return {
-      'success': False
-    }
+  except Exception as e:
+    logging.log(e)
+    return {'success': False}
   username = mr.rds.hget(mr.MKEY2USER, mkey)
   cur_timestamp = mr.rds.hget(mr.USER2TS, username)
 
@@ -184,4 +172,5 @@ def heartbeat():
 
 if __name__ == "__main__":
   mr.initialize()
+  logging.basicConfig(level=logging.DEBUG)
   app.run(host='0.0.0.0', debug=True, port=8000, threading=True)
