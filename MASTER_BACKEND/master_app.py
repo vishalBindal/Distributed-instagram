@@ -88,12 +88,6 @@ def get_master_rds():
   return MasterRedis(MASTER_IP)
 
 
-def generate_mkey():
-  # generating random string of length 512
-  key = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for i in range(512))
-  return key
-
-
 @app.route('/new_user', methods=['POST'])
 def new_user():
   data = request.form
@@ -129,10 +123,10 @@ def new_user():
 
 @app.route('/login_user', methods=['POST'])
 def login_user():
-  data = request.get_json()
+  data = request.form
   try:
-    name = data.name
-    password = data.password
+    name = data['name']
+    password = data['password']
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
@@ -151,13 +145,13 @@ def login_user():
 
 @app.route('/heartbeat', methods=['POST'])
 def heartbeat():
-  data = request.get_json()
+  data = request.form
   try:
-    mkey = data.mkey
-    location = data.location
-    timestamp = data.timestamp
+    mkey = data['mkey']
+    location = data['location']
+    timestamp = data['timestamp']
   except Exception as e:
-    logging.log(e)
+    logging.debug(e)
     return {'success': False}
   username = mr.rds.hget(mr.MKEY2USER, mkey)
   cur_timestamp = mr.rds.hget(mr.USER2TS, username)

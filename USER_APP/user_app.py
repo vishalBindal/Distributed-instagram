@@ -248,6 +248,11 @@ def register_post():
       return render_template('register.html', username=username)
 
 
+@app.route("/dashboard")
+def dashboard():
+  return render_template('profile.html', user_email='fefe', user_uname='fefe')
+
+
 @app.route("/")
 def index():
   return render_template('front_page.html')
