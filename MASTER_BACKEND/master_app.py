@@ -131,14 +131,14 @@ def login_user():
     password = data['password']
   except Exception as e:
     logging.debug(e)
-    return {'success': False, 'err': 0}
+    return {'success': False, 'err': str(e)}
 
   if not mr.rds.sismember(mr.USERNAMES, name):
-    return {'success': False, 'err': 1}
+    return {'success': False, 'err': f'no user {name}'}
 
   stored_password = mr.rds.hget(mr.USER2PASS, name)
   if not check_password_hash(stored_password, password):
-    return {'success': False, 'err': 2}
+    return {'success': False, 'err': 'password didn\'t match'}
 
   m_key = mr.rds.hget(mr.USER2MKEY, name)
   key2_encrypt = mr.rds.hget(mr.USER2KEY2E, name)

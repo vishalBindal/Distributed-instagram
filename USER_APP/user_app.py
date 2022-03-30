@@ -25,17 +25,31 @@ class UserMismatch(Exception):
   pass
 
 
+def get_followers(username: str) -> List[str]:
+  r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'followers'), params={'name': username})
+  data = r.json()
+  followers = data['followers']
+  return followers
+
+
+def get_following(username: str) -> List[str]:
+  r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'following'), params={'name': username})
+  data = r.json()
+  following = data['following']
+  return following
+
+
 class User:
   USER_DATA_KEY = 'user_data'
   DECRYPT_FOLLOWING_KEY = 'decrypt_following_key'
   required_keys = ['username', 'm_key', 'key2_encrypt', 'key2_decrypt', 'creation_time']
 
-  def __init__(self, username: str = '', m_key: str = '', key2_encrypt: bytes = b'', key2_decrypt: bytes = b''):
+  def __init__(self, username: str = '', m_key: str = '', key2_encrypt: str = '', key2_decrypt: str = ''):
     self.loaded = False
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
     self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': self.get_current_time_str()}
-    self.key2_decrypt_following: Dict[str, bytes] = dict()
+    self.key2_decrypt_following: Dict[str, str] = dict()
 
   def get_username(self):
     self.load()
@@ -57,7 +71,7 @@ class User:
     self.load()
     return self.user_data['creation_time']
 
-  def add_following(self, username2: str, following_decrypt_key: bytes):
+  def add_following(self, username2: str, following_decrypt_key: str):
     """This function will be called after someone accepts your follow request. That person who accept will send decrypt
     key to master and master will send it to you through a post request and then this function will be called."""
     self.key2_decrypt_following[username2] = following_decrypt_key
@@ -71,20 +85,16 @@ class User:
     return get_ip_address()
 
   def get_followers(self):
-    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'followers'), params={'name': self.get_username()})
-    data = r.json()
-    followers: List[str] = data['followers']
-    return followers
+    return get_followers(self.get_username())
 
   def get_following(self):
-    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'following'), params={'name': self.get_username()})
-    data = r.json()
-    following: List[str] = data['following']
-    return following
+    return get_following(self.get_username())
 
   def get_pending_requests(self):
-    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'pending_requests'), params={'name': self.get_username()})
-    data = r.json()
+    r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'pending_requests'),
+                                                data={'mkey': self.get_m_key()})
+
+    data = json.loads(r.content)
     pending_requests: List[str] = data['following']
     return pending_requests
 
@@ -148,7 +158,7 @@ class User:
     self.save()
 
   @staticmethod
-  def log_user_in(username: str, m_key: str, key2_encrypt: bytes):
+  def log_user_in(username: str, m_key: str, key2_encrypt: str):
     user = User(username=username, m_key=m_key, key2_encrypt=key2_encrypt)
 
     # Checking if user in local storage is same as the one logging in
@@ -161,7 +171,7 @@ class User:
       user.try_recovery()
 
   @staticmethod
-  def create_new_user(username: str, m_key: str, key2_encrypt: bytes, key2_decrypt: bytes):
+  def create_new_user(username: str, m_key: str, key2_encrypt: str, key2_decrypt: str):
     user = User(username, m_key, key2_encrypt, key2_decrypt)
     user.save()
 
@@ -174,6 +184,19 @@ def err():
 @app.route("/login")
 def login(name=''):
   return render_template('login.html', name=name)
+
+
+@app.route('/follow_accepted', methods=['POST'])
+def follow_accepted():
+  username2 = request.form.get('username2')
+  key2_decrypt = request.form.get('key2_decrypt')
+  user = User()
+  user.load()
+  if not user.is_logged_in():
+    return {'success': False, 'err': 'user is not logged in on this node'}
+  else:
+    user.add_following(username2=username2, following_decrypt_key=key2_decrypt)
+    return {'success': True}
 
 
 @app.route("/login", methods=['POST'])
@@ -245,15 +268,21 @@ def register_post():
       return render_template('register.html', username=username)
 
 
-@app.route("/dashboard")
-def dashboard():
+@app.route("/profile/<username>")
+def profile(username):
+  user = User(username=username)
+  return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
+
+
+@app.route("/profile")
+def profile():
   user = User()
   user.load()
   if user.is_logged_in():
     flash('You are not logged in. Log in to view dashboard')
     return render_template('login.html', user=user)
   else:
-    return render_template('profile.html', user=user, followers=user.get_followers())
+    return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
 
 
 @app.route("/")

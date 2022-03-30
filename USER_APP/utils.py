@@ -22,13 +22,12 @@ def allowed_file(filename: str):
          filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def generate_key_pair() -> Tuple[bytes, bytes]:
+def generate_key_pair() -> Tuple[str, str]:
   """returns a public key and private key"""
   key = RSA.generate(2048)
   p_key = key.publickey().exportKey('PEM')
   private_key = key.exportKey('PEM')
-  return p_key, private_key
-
+  return p_key.decode(), private_key.decode()
 
 @app.route('/upload_pic', methods=['GET', 'POST'])
 def upload_pic():
