@@ -377,7 +377,7 @@ def get_nearby_nodes():
   # Return list[str]: list of usernames where image should be stored
 
 
-@app.route('/reset_following', method=['POST'])
+@app.route('/reset_following', methods=['POST'])
 def reset_following():
   data = request.form
   try:
