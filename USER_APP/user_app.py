@@ -132,7 +132,12 @@ def profile():
     # path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
     # with open(path, "rb") as image_file:
     #   data = base64.b64encode(image_file.read()).decode("utf-8")
-    images_b64 = user.get_my_images_for()
+
+    err_msg = user.get_my_images_for()[1]
+    if err_msg != '':
+      render_template('error.html', error=err_msg)
+
+    images_b64 = user.get_my_images_for()[0]
     return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
                            following=user.get_following(), images_blob_data=images_b64)
 
@@ -255,6 +260,23 @@ def add_image_data():
   # else:
   user.add_image_data(unique_hash=unique_hash, encoded_info=encoded_info)
   return {'success': True}
+
+
+@app.route('/get_encrypted_image', methods=['GET'])
+def get_encrypted_image():
+  try:
+    image_hash = request.args['image_hash']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': e}
+
+  user = User()
+  user.load()
+  if user.rds.hexists(user.IMAGE_DATA, key=image_hash):
+    user.rds.hget(user.IMAGE_DATA, key=image_hash)
+    return {'success': True}
+  else:
+    return {'success': False, 'err': 'this image hash not in redis'}
 
 
 @app.route('/uploads/<name>')
