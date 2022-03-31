@@ -289,23 +289,24 @@ def send_request():
 def get_nearby_nodes():
   username = request.args['name']
   try:
+    all_clusters = mr.rds.hgetall(mr.USER2CLUS)
     cluster = mr.rds.hget(mr.USER2CLUS, username)
     users_in_cluster = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
     nearby_nodes = []
     clusters_added = set()
-    clusters_added.add(cluster)
+    clusters_added.add(int(cluster))
 
-    while len(nearby_nodes) < NUM_REPLICATIONS//5:
-      ind = random.randint() % len(users_in_cluster)
+    while len(nearby_nodes) < NUM_REPLICATIONS//2:
+      ind = random.randint(0,len(users_in_cluster) - 1)
       if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
         nearby_nodes.append(users_in_cluster[ind])
 
     while len(nearby_nodes) < NUM_REPLICATIONS:
-      ind = random.randint() % NUM_CLUSTERS
+      ind = random.randint(0,NUM_CLUSTERS-1)
       if ind not in clusters_added:
-        users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
-        ind1 = random.rand() % len(users_in_cluster_temp)
-        nearby_nodes.append(users_in_cluster_temp[ind])
+        users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(ind)))
+        ind1 = random.randint(0,len(users_in_cluster_temp) - 1)
+        nearby_nodes.append(users_in_cluster_temp[ind1])
         clusters_added.add(ind)
 
     return {
@@ -314,7 +315,12 @@ def get_nearby_nodes():
 
   except Exception as e:
     return {
-      'nearby_nodes' : []
+      'nearby_nodes' : [],
+      'all_clusters' : all_clusters,
+      'cluster' : cluster,
+      'users_in_cluster' : users_in_cluster,
+      'temp_cluster' : users_in_cluster_temp,
+      'exception' : str(e)
     }
 
   # Return list[str]: list of usernames where image should be stored

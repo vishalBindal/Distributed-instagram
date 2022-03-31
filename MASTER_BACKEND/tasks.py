@@ -58,7 +58,7 @@ def run_kmeans():
             for value in clus_to_users[i]:
                 mr.rds.sadd(mr.CLUS2USERS_PREFIX + str(i), value)
 
-        #print(mr.rds.hgetall(mr.USER2CLUS))
+        print(mr.rds.hgetall(mr.USER2CLUS))
 
         time.sleep(KMEANS_INTERVAL)
 
