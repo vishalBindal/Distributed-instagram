@@ -129,15 +129,21 @@ def profile():
     flash('You are not logged in. Log in to view profile')
     return render_template('login.html', user=user)
   else:
-    # path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
-    # with open(path, "rb") as image_file:
-    #   data = base64.b64encode(image_file.read()).decode("utf-8")
 
-    err_msg = user.get_my_images_for()[1]
+    # import glob
+    # images_b64 = []
+    # for img_path in glob.glob(f"{app.config['UPLOAD_FOLDER']}*.jpg"):
+    #   # path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
+    #   with open(img_path, "rb") as image_file:
+    #     data = base64.b64encode(image_file.read()).decode("utf-8")
+    #   images_b64.append(data)
+
+    a = user.get_my_images_for()
+    err_msg = a[1]
     if err_msg != '':
       render_template('error.html', error=err_msg)
 
-    images_b64 = user.get_my_images_for()[0]
+    images_b64 = a[0]
     return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
                            following=user.get_following(), images_blob_data=images_b64)
 
@@ -272,11 +278,10 @@ def get_encrypted_image():
 
   user = User()
   user.load()
-  return user.rds.hget(user.IMAGE_DATA, key=image_hash)
-
   if user.rds.hexists(user.IMAGE_DATA, key=image_hash):
-
-    return {'success': True, 'encoded_info': user.rds.hget(user.IMAGE_DATA, key=image_hash)}
+    bytes_obj = user.rds.hget(user.IMAGE_DATA, key=image_hash)
+    data = base64.b64encode(bytes_obj).decode('utf-8')
+    return {'success': True, 'encoded_info': data}
   else:
     return {'success': False, 'err': 'this image hash not in redis'}
 

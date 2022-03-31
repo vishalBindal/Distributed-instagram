@@ -1,3 +1,4 @@
+import base64
 import pickle
 from datetime import datetime
 import json
@@ -177,8 +178,8 @@ class User:
       r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
         'image_hash': image_hash
       }, headers={'Content-Type': 'application/octet-stream'})
-      r.get_data()
-      encoded_info = r.json()['encoded_info']
+
+      encoded_info = base64.b64decode(r.json()['encoded_info'])
 
       encoded_info_dict = pickle.loads(encoded_info)
 
