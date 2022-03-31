@@ -273,8 +273,8 @@ def get_encrypted_image():
   user = User()
   user.load()
   if user.rds.hexists(user.IMAGE_DATA, key=image_hash):
-    user.rds.hget(user.IMAGE_DATA, key=image_hash)
-    return {'success': True}
+
+    return {'success': True, 'encoded_info': user.rds.hget(user.IMAGE_DATA, key=image_hash)}
   else:
     return {'success': False, 'err': 'this image hash not in redis'}
 
