@@ -134,10 +134,16 @@ def register(username=''):
 
 @app.route("/profile/<username>")
 def profile2(username):
+  user = User()
+  user.load()
+  a = user.get_images_for(username)
+  err_msg = a[1]
+  if err_msg != '':
+    render_template('error.html', error=err_msg)
+  images_b64 = a[0]
   user2 = User(username=username)
-
   return render_template('other_profile.html', pronoun=username, user=user2, followers=user2.get_followers(),
-                         following=user2.get_following(), image_blob_data=['fwefwfwefwefwefwe'])
+                         following=user2.get_following(), image_blob_data=images_b64)
 
 
 @app.route("/profile")

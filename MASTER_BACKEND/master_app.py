@@ -328,14 +328,21 @@ def get_nearby_nodes():
     clusters_added = set()
     clusters_added.add(int(cluster))
 
+    users_in_cluster.remove(username)
+    sort(users_in_cluster, key=lambda name: mr.get_node_datasize(name))
+
+    # Pick NUM_REPLICATIONS // 2 elements from users_in_cluster
+    users_in_cluster[:NUM_REPLICATIONS // 2]
+
+
+
+
     while len(nearby_nodes) < NUM_REPLICATIONS // 2:
       # ind = random.randint(0, len(users_in_cluster) - 1)
 
       indices = [i for i in range(len(users_in_cluster))]
 
-      def get_datasize(i: int):
-        username_i: str = users_in_cluster[i]
-        return mr.get_node_datasize(username_i)
+
 
       ind = min(indices, key=get_datasize)
 
