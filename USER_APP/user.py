@@ -52,6 +52,7 @@ class User:
   def store_key_2decrypt(self, username2: str, key2_decrypt: str):
     self.key2_decrypt_following[username2] = key2_decrypt
     self.rds.hset(self.DECRYPT_FOLLOWING_KEY, key=username2, value=key2_decrypt)
+    self.save()
 
   def add_following(self, username2: str, following_decrypt_key: str):
     """This function will be called after someone accepts your follow request. That person who accept will send decrypt
