@@ -156,7 +156,7 @@ def login_user():
 
   hashed_password = mr.rds.hget(mr.USER2PASS, name)
   if not bcrypt.checkpw(password.encode(), hashed_password.encode()):
-    return {'success': False, 'err': 2}
+    return {'success': False, 'err': 'password didn\'t match'}
 
   m_key = mr.rds.hget(mr.USER2MKEY, name)
   key2_encrypt = mr.rds.hget(mr.USER2KEY2E, name)
