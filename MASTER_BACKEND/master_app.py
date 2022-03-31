@@ -324,6 +324,24 @@ def get_nearby_nodes():
 
   # Return list[str]: list of usernames where image should be stored
 
+@app.route('/reset_following', meothod=['POST'])
+def reset_following():
+  data = request.form
+  try:
+    m_key = data['m_key']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 0}
+
+  # TODO (bindal): Set following of username = []
+  pass
+
+@app.route('/get_username_ip')
+def get_username_ip():
+  username = request.args['name']
+  return {
+    'node_ip': mr.rds.hget(mr.USER2IP, username)
+  }
 
 @app.route('/get_images')
 def get_images():
