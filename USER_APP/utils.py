@@ -13,12 +13,13 @@ import netifaces
 
 
 def get_ip_address():
-  # hostname = socket.gethostname()  # baadalvm
-  # ip_address = socket.gethostbyname(hostname)  # Private IP of Node
-  # return ip_address
-  addrs = netifaces.ifaddresses('en0')
-  return addrs[netifaces.AF_INET][0]['addr']
-
+  hostname = socket.gethostname()  # baadalvm
+  ip_address = socket.gethostbyname(hostname)  # Private IP of Node
+  if ip_address.startswith('127'):
+    addrs = netifaces.ifaddresses('en0')
+    return addrs[netifaces.AF_INET][0]['addr']
+  else:
+    return ip_address
 
 def allowed_file(filename: str):
   return '.' in filename and \
