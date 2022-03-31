@@ -280,7 +280,7 @@ def accept_request():
   mr.accept_follow_request(username2, username)
 
   node_ip = mr.rds.hget(mr.USER2IP, username)
-  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'),
+  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'store_key2_decrypt'),
                                               data={
                                                 'username': username,
                                                 'key2_decrypt': key2_decrypt
@@ -334,15 +334,10 @@ def get_nearby_nodes():
     # Pick NUM_REPLICATIONS // 2 elements from users_in_cluster
     users_in_cluster[:NUM_REPLICATIONS // 2]
 
-
-
-
     while len(nearby_nodes) < NUM_REPLICATIONS // 2:
       # ind = random.randint(0, len(users_in_cluster) - 1)
 
       indices = [i for i in range(len(users_in_cluster))]
-
-
 
       ind = min(indices, key=get_datasize)
 

@@ -26,7 +26,9 @@ import urllib.parse
 
 @app.route('/err', methods=['GET'])
 def err():
-  return render_template('error.html', error='toto')
+  user = User()
+  user.load()
+  return render_template('error.html', error='toto', user=user)
 
 
 @app.route('/follow_accepted', methods=['POST'])
@@ -77,14 +79,16 @@ def login(name=''):
 
 @app.route('/logout', methods=['POST'])
 def logout():
+  user = User()
+  user.load()
+
   do_delete = 'off'
   try:
     do_delete = request.form.get('do_delete', 'off')
   except Exception as e:
     err_msg = str(e)
-    render_template('error.html', error=err_msg)
+    render_template('error.html', error=err_msg, user=user)
 
-  user = User()
   if do_delete == 'on':
     user.delete_rds()
   else:
@@ -105,7 +109,7 @@ def register(username=''):
       password = request.form.get('password')
     except Exception as e:
       err_msg = str(e)
-      render_template('error.html', error=err_msg)
+      render_template('error.html', error=err_msg, user=User())
 
     key2_encrypt, key2_decrypt = generate_key_pair()
 
@@ -139,10 +143,10 @@ def profile2(username):
   a = user.get_images_for(username)
   err_msg = a[1]
   if err_msg != '':
-    render_template('error.html', error=err_msg)
+    render_template('error.html', error=err_msg, user=user)
   images_b64 = a[0]
   user2 = User(username=username)
-  return render_template('other_profile.html', pronoun=username, user=user2, followers=user2.get_followers(),
+  return render_template('profile.html', pronoun=username, user=user2, followers=user2.get_followers(),
                          following=user2.get_following(), image_blob_data=images_b64)
 
 
@@ -166,11 +170,12 @@ def profile():
     a = user.get_my_images_for()
     err_msg = a[1]
     if err_msg != '':
-      render_template('error.html', error=err_msg)
+      render_template('error.html', error=err_msg, user=user)
 
     images_b64 = a[0]
     return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
-                           following=user.get_following(), pending=user.get_pending_requests(), images_blob_data=images_b64)
+                           following=user.get_following(), pending=user.get_pending_requests(),
+                           images_blob_data=images_b64)
 
 
 @app.route('/upload_pic', methods=['POST'])
@@ -246,7 +251,7 @@ def upload_pic():
           if not response['success']:
             err_msg = response['err']
             logging.debug(f'failed writing on node {nd_url}. error: {err_msg}')
-            return redirect(url_for('error.html', error=err_msg))
+            return render_template('error.html', error=err_msg, user=user)
 
           curr_dt = datetime.now()
           timestamp = int(round(curr_dt.timestamp()))
@@ -261,12 +266,12 @@ def upload_pic():
           if not response['success']:
             err_msg = response['err']
             logging.debug(f'failed writing on node {nd_url}. error: {err_msg}')
-            return redirect(url_for('error.html', error=err_msg))
+            return render_template('error.html', error=err_msg, user=user)
 
       except Exception as e:
         err_msg = str(e)
         logging.debug(f'error: {err_msg}')
-        return redirect(url_for('error.html', error=err_msg))
+        return render_template('error.html', error=err_msg, user=user)
 
       return redirect(url_for('profile'))
 
@@ -330,7 +335,7 @@ def all_users():
   for username in all_users:
     if username not in following_set and username != user.get_username():
       not_following.append(username)
-  
+
   return render_template('explore.html', following=following, not_following=not_following, user=user)
 
 
@@ -339,14 +344,30 @@ def follow_new_user(username):
   user = User()
   user.load()
   r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'send_request'), data={
-            'm_key': user.get_m_key(),
-            'username2': username
-          })
+    'm_key': user.get_m_key(),
+    'username2': username
+  })
   response = json.loads(r.content)
   if not response['success']:
-      flash(response['err'])
-      return redirect(url_for('all_users'))
+    flash(response['err'])
+    return redirect(url_for('all_users'))
   return redirect(url_for('profile'))
+
+
+@app.route('/store_key2_decrypt', methods=['POST'])
+def store_key2_decrypt():
+  data = request.form
+  try:
+    username = data['username']
+    key2_decrypt = data['key2_decrypt']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': e}
+
+  user = User()
+  user.load()
+  user.store_key_2decrypt(username, key2_decrypt)
+  return {'success': True}
 
 
 @app.route('/accept_request/<username>')
@@ -354,14 +375,14 @@ def accept_user(username):
   user = User()
   user.load()
   r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'accept_request'), data={
-            'm_key': user.get_m_key(),
-            'username2': username,
-            'key2_decrypt': user.get_key2_decrypt()
-          })
+    'm_key': user.get_m_key(),
+    'username2': username,
+    'key2_decrypt': user.get_key2_decrypt()
+  })
   response = json.loads(r.content)
   if not response['success']:
-      flash(response['err'])
-      return redirect(url_for('profile'))
+    flash(response['err'])
+    return redirect(url_for('profile'))
   return redirect(url_for('profile'))
 
 
