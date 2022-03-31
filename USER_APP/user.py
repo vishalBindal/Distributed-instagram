@@ -29,6 +29,7 @@ class User:
   def __init__(self, username: str = '', m_key: str = '', key2_encrypt: str = '', key2_decrypt: str = ''):
     self.loaded = False
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
+    self.rds_no_decode = redis.Redis(decode_responses=False, socket_timeout=5)
     self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': self.get_current_time_str()}
     self.key2_decrypt_following: Dict[str, str] = dict()
