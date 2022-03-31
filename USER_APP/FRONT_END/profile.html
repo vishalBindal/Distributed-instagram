@@ -102,20 +102,21 @@
 
 
         <h3>Following</h3>
-        {% if following|length == 0 %}
           <div class="empty">
+            {% if following|length == 0 %}
             <div class="empty-icon">
               <i class="fas fa-plane-slash"></i>
             </div>
             <p class="empty-title h5">{{ pronoun }} are not following anyone</p>
             <p class="empty-subtitle">Explore users to follow</p>
+            {% endif %}
             <div class="empty-action">
               <a href="/all_users">
                 <button class="btn btn-primary">Explore other users</button>
               </a>
             </div>
           </div>
-        {% endif %}
+        
         {% for following_user in following %}
           <div class="card shadowContainer">
             <div class="card-header">
@@ -129,17 +130,44 @@
                   <div class="tile-title text-bold">{{ following_user }}</div>
                   <div class="tile-subtitle text-bold"><a href="/profile/{{ follower }}"> Show Profile </a></div>
                 </div>
-                <div class="tile-action">
-                  <a href='/unfollow/{{ follower }}'>
-                    <button class="btn btn-primary">Unfollow</button>
-                  </a>
-                </div>
               </div>
             </div>
           </div>
           <br>
         {% endfor %}
 
+        <h3>Pending requests</h3>
+        {% if pending|length == 0 %}
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-plane-slash"></i>
+            </div>
+            <p class="empty-title h5">{{ pronoun }} don't have any pending follow requests</p>
+            <div class="empty-action">
+              <a href="/home">
+                <button class="btn btn-primary">Go to home page</button>
+              </a>
+            </div>
+          </div>
+        {% endif %}
+        {% for username in pending %}
+          <div class="card shadowContainer">
+            <div class="card-header">
+            </div>
+            <div class="card-body">
+              <div class="tile tile-centered">
+                <div class="tile-icon">
+                  <i class="fas fa-suitcase-rolling"></i>
+                </div>
+                <div class="tile-content">
+                  <div class="tile-title text-bold">{{ username }}</div>
+                  <div class="tile-subtitle text-bold"><a href="/accept_request/{{ username }}"> Accept request </a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <br>
+        {% endfor %}
 
         <h3>Posts</h3>
         {% if images_blob_data|length == 0 %}
