@@ -318,7 +318,7 @@ def send_request():
 
 @app.route('/nearby_nodes', methods=['GET'])
 def get_nearby_nodes():
-  # return {'nearby_nodes': ['10.17.51.108']}
+  return {'nearby_nodes': ['10.17.51.108']}
   username = request.args['name']
   try:
     all_clusters = mr.rds.hgetall(mr.USER2CLUS)
