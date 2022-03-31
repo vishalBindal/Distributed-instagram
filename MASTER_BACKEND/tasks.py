@@ -1,8 +1,8 @@
 from celery import Celery
 from sklearn.cluster import KMeans
 import numpy as np
-from MASTER_BACKEND.master_app import get_master_rds
-from MASTER_BACKEND.config import NUM_CLUSTERS, KMEANS_INTERVAL
+from master_app import get_master_rds
+from config import NUM_CLUSTERS, KMEANS_INTERVAL
 import time
 
 app = Celery('tasks', backend='redis://localhost', broker='pyamqp://guest@localhost:5672//')
@@ -20,6 +20,9 @@ def run_kmeans():
 
         for username in user_to_loc:
             location = user_to_loc[username]
+            if location == "foo":
+                continue
+            location = tuple(map(int, location.split(',')))
             loc_to_id[location] = ids
             user_to_id[username] = ids
             locs.append(location)
@@ -38,8 +41,11 @@ def run_kmeans():
         clus_to_users = {}
 
         for i in range(len(usernames)):
-            mr.rds.hset(mr.USER2LOC, usernames[i], user_clusters[i])
-            clus_to_users[user_clusters[i]].append(usernames[i])
+            int_val = int(user_clusters[i])
+            mr.rds.hset(mr.USER2LOC, usernames[i], int_val)
+            if int_val not in clus_to_users:
+                clus_to_users[int_val] = []
+            clus_to_users[int_val].append(usernames[i])
 
         for i in range(NUM_CLUSTERS):
             while mr.rds.scard(mr.CLUS2USERS_PREFIX + str(i)) > 0:

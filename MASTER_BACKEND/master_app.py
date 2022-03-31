@@ -14,6 +14,7 @@ import requests
 import urllib
 from utils import get_node_url
 import random
+import threading
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -46,7 +47,10 @@ class MasterRedis(ABC):
     self.rds.flushall()
 
     # setup USERNAMES
-    self.rds.sadd(self.USERNAMES, "foo")
+    #self.rds.sadd(self.USERNAMES, "foo")
+    self.rds.sadd(self.USERNAMES, "user1")
+    self.rds.sadd(self.USERNAMES, "user2")
+    self.rds.sadd(self.USERNAMES, "user3")
     # Setup USER2PASS
     self.rds.hset(self.USER2PASS, "foo", "foo")
     # Setup USER2KEY2E
@@ -57,7 +61,10 @@ class MasterRedis(ABC):
     self.rds.hset(self.USER2MKEY, "foo", "foo")
 
     #setup USER2CLUS
-    self.rds.hset(self.USER2CLUS, "foo", "foo")
+    #self.rds.hset(self.USER2CLUS, "foo", "foo")
+    self.rds.hset(self.USER2CLUS, "user1", "1, 1")
+    self.rds.hset(self.USER2CLUS, "user2", "1, 2")
+    self.rds.hset(self.USER2CLUS, "user3", "100, 100")
 
     for i in range(NUM_CLUSTERS):
       self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
