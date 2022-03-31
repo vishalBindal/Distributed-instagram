@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Explore{% endblock %}
+{% block content %}
+  <div class="container">
+    <div class="columns">
+      <div class="column col-4 col-lg-3 col-xs-0"></div>
+      <div class="column col-4 col-lg-6 col-xs-12">
+        <ul class="breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="/">Home</a>
+          </li>
+          <li class="breadcrumb-item">
+            <a href="/all_users">Explore</a>
+          </li>
+        </ul>
+        <h1>Explore more users!</h1>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="toast toast-error">
+              {{ messages[0] }}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% if not_following|length == 0 %}
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-plane-slash"></i>
+            </div>
+            <p class="empty-title h5">No new user left to explore</p>
+          </div>
+        {% endif %}
+        {% for username in not_following %}
+          <div class="card shadowContainer">
+            <div class="card-header">
+            </div>
+            <div class="card-body">
+              <div class="tile tile-centered">
+                <div class="tile-icon">
+                  <i class="fas fa-suitcase-rolling"></i>
+                </div>
+                <div class="tile-content">
+                  <div class="tile-title text-bold">{{ username }}</div>
+                  <div class="tile-subtitle text-bold"><a href="/follow/{{ username }}"> Follow </a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <br>
+        {% endfor %}
+        {% for username in following %}
+          <div class="card shadowContainer">
+            <div class="card-header">
+            </div>
+            <div class="card-body">
+              <div class="tile tile-centered">
+                <div class="tile-icon">
+                  <i class="fas fa-suitcase-rolling"></i>
+                </div>
+                <div class="tile-content">
+                  <div class="tile-title text-bold">{{ username }}</div>
+                  <div class="tile-subtitle">Already following</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <br>
+        {% endfor %}
+
+      </div>
+      <div class="column col-4 col-lg-3 col-xs-0"></div>
+    </div>
+  </div>
+
+
+
+{% endblock %}
+
