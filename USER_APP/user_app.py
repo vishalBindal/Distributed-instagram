@@ -272,6 +272,8 @@ def get_encrypted_image():
 
   user = User()
   user.load()
+  return user.rds.hget(user.IMAGE_DATA, key=image_hash)
+
   if user.rds.hexists(user.IMAGE_DATA, key=image_hash):
 
     return {'success': True, 'encoded_info': user.rds.hget(user.IMAGE_DATA, key=image_hash)}

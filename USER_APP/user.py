@@ -176,7 +176,8 @@ class User:
       node_url = f'http://{node_ip}:8000'
       r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
         'image_hash': image_hash
-      })
+      }, headers={'Content-Type': 'application/octet-stream'})
+      r.get_data()
       encoded_info = r.json()['encoded_info']
 
       encoded_info_dict = pickle.loads(encoded_info)
