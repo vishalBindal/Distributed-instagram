@@ -23,6 +23,10 @@
         {% endwith %}
         <br>
         <div class="tile tile-centered">
+          <figure class="avatar avatar-xl" data-initial="{{ user.get_username()[:2] }}"
+                  style="background-color: #5755d9;">
+            {#<img src="{{ url_for('static', filename='images/profile.webp') }}" alt="...">#}
+          </figure>
           <div class="tile-content">
             <div class="tile-title text-bold">Username</div>
             <div class="tile-subtitle">{{ user.get_username() }}</div>
@@ -31,12 +35,13 @@
             <div class="tile-title text-bold">Created</div>
             <div class="tile-subtitle">{{ user.get_creation_time() }}</div>
           </div>
-          <div class="tile-action">
-            <a href='/edit_profile'>
-              <button class="btn btn-link btn-action btn-lg tooltip tooltip-left" data-tooltip="Edit user details"><i
-                      class="icon icon-edit"></i></button>
-            </a>
-          </div>
+          {#Edit Profile #}
+          {#<div class="tile-action">#}
+          {#  <a href='/edit_profile'>#}
+          {#    <button class="btn btn-link btn-action btn-lg tooltip tooltip-left" data-tooltip="Edit user details"><i#}
+          {#            class="icon icon-edit"></i></button>#}
+          {#  </a>#}
+          {#</div>#}
         </div>
         <br>
         <button class='btn show-modal'>Post a new image</button>
@@ -58,19 +63,17 @@
                 <input type="file" name="file"/>
                 <input type="submit"/>
               </form>
-
-              <a href='/delete_user' class='btn'>Yes, delete my account</a>
             </div>
           </div>
         </div>
         <div class='divider'></div>
-        <h3>Your Followers</h3>
+        <h3>Followers</h3>
         {% if followers|length == 0 %}
           <div class="empty">
             <div class="empty-icon">
               <i class="fas fa-plane-slash"></i>
             </div>
-            <p class="empty-title h5">You don't have any followers</p>
+            <p class="empty-title h5">{{ pronoun }} don't have any followers</p>
             <div class="empty-action">
               <a href="/home">
                 <button class="btn btn-primary">Go to home page</button>
@@ -98,13 +101,13 @@
         {% endfor %}
 
 
-        <h3>You are Following</h3>
+        <h3>Following</h3>
         {% if following|length == 0 %}
           <div class="empty">
             <div class="empty-icon">
               <i class="fas fa-plane-slash"></i>
             </div>
-            <p class="empty-title h5">You are not following anyone</p>
+            <p class="empty-title h5">{{ pronoun }} are not following anyone</p>
             <p class="empty-subtitle">Explore users to follow</p>
             <div class="empty-action">
               <a href="/all_users">
@@ -136,6 +139,33 @@
           </div>
           <br>
         {% endfor %}
+
+
+        <h3>Posts</h3>
+{#        {% if images_blob_data|length == 0 %}#}
+{#          <div class="empty">#}
+{#            <div class="empty-icon">#}
+{#              <i class="fas fa-plane-slash"></i>#}
+{#            </div>#}
+{#            <p class="empty-title h5">{{ pronoun }} don't have any post</p>#}
+{#          </div>#}
+{#        {% endif %}#}
+        {% for image_blob_data in images_blob_data %}
+          <div class="card shadowContainer">
+            <div class="card-header">
+            </div>
+            <div class="card-body">
+              <div class="tile tile-centered">
+                <div class="tile-icon">
+                  <i class="fas fa-suitcase-rolling"></i>
+                </div>
+                <div class="card-image"><img class="img-responsive" src="data:image/jpg;base64,{{image_blob_data}}" alt="post"></div>
+              </div>
+            </div>
+          </div>
+          <br>
+        {% endfor %}
+
       </div>
       <div class="column col-4 col-lg-3 col-xs-0"></div>
     </div>

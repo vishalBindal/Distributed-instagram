@@ -114,9 +114,10 @@ def register_post():
 
 @app.route("/profile/<username>")
 def profile2(username):
-  user = User(username=username)
-  return render_template('other_profile.html', user=user, followers=user.get_followers(),
-                         following=user.get_following())
+  user2 = User(username=username)
+
+  return render_template('other_profile.html', pronoun=username, user=user2, followers=user2.get_followers(),
+                         following=user2.get_following(), image_blob_data=['fwefwfwefwefwefwe'])
 
 
 @app.route("/profile")
@@ -127,7 +128,11 @@ def profile():
     flash('You are not logged in. Log in to view profile')
     return render_template('login.html', user=user)
   else:
-    return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
+    data = open(
+      '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png',
+      'rb').read()
+    return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
+                           following=user.get_following(), images_blob_data=[data])
 
 
 @app.route("/")
@@ -199,15 +204,34 @@ def upload_pic():
         for nd_id in nd_ids:
           nd_url = f'http://{nd_id}:8000'
           r = requests.post(url=urllib.parse.urljoin(nd_url, 'add_image_data'), data={
+            'unique_hash': file_path,
             'encoded_info': encoded_info
           })
           response = json.loads(r.content)
 
           if not response['success']:
-            logging.debug(f'failed writing on node {nd_url}')
+            err_msg = response['err']
+            logging.debug(f'failed writing on node {nd_url}. error: {err_msg}')
+            return redirect(url_for('error.html', error=err_msg))
+
+          curr_dt = datetime.now()
+          timestamp = int(round(curr_dt.timestamp()))
+          r = requests.post(url=urllib.parse.urljoin(nd_url, 'record_image_upload'), data={
+            'm_key': user.get_m_key(),
+            'image_hash': file_path,
+            'target_user': nd_id,
+            'timestamp': timestamp
+          })
+
+          if not response['success']:
+            err_msg = response['err']
+            logging.debug(f'failed writing on node {nd_url}. error: {err_msg}')
+            return redirect(url_for('error.html', error=err_msg))
+
       except Exception as e:
-        print(e)
-        return {'success': False, 'err': str(e)}
+        err_msg = str(e)
+        logging.debug(f'error: {err_msg}')
+        return redirect(url_for('error.html', error=err_msg))
 
       return redirect(url_for('download_file', name=filename))
 
@@ -220,14 +244,14 @@ def add_image_data():
     encoded_info = data['encoded_info']
   except Exception as e:
     logging.debug(e)
-    return {'success': False}
+    return {'success': False, 'err': e}
   user = User()
   user.load()
-  if not user.is_logged_in():
-    return {'success': False, 'err': 'user is not logged in on this node'}
-  else:
-    user.add_image_data(unique_hash=unique_hash, encoded_info=encoded_info)
-    return {'success': True}
+  # if not user.is_logged_in():
+  #   return {'success': False, 'err': 'user is not logged in on this node'}
+  # else:
+  user.add_image_data(unique_hash=unique_hash, encoded_info=encoded_info)
+  return {'success': True}
 
 
 @app.route('/uploads/<name>')
