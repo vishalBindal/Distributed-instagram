@@ -78,8 +78,8 @@ class MasterRedis(ABC):
 
   def add_image_to_user(self, username, image_hash, time_of_upload):
     # User "username" has uploaded image to her profile
-    sorted_set_name = username + self.USER_IMG_SUFFIX
-    self.rds.zadd(sorted_set_name, {time_of_upload, image_hash})
+    sorted_set_name = username + self.USER2IMG_SUFFIX
+    self.rds.zadd(sorted_set_name, {time_of_upload: image_hash})
 
   def add_user_to_image(self, username, image_hash):
     # Image is stored at node corresponding to username

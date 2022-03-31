@@ -129,12 +129,12 @@ def profile():
     flash('You are not logged in. Log in to view profile')
     return render_template('login.html', user=user)
   else:
-    path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
-    with open(path, "rb") as image_file:
-      data = base64.b64encode(image_file.read()).decode("utf-8")
-
+    # path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
+    # with open(path, "rb") as image_file:
+    #   data = base64.b64encode(image_file.read()).decode("utf-8")
+    images_b64 = user.get_my_images_for()
     return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
-                           following=user.get_following(), images_blob_data=[data])
+                           following=user.get_following(), images_blob_data=images_b64)
 
 
 @app.route("/")
@@ -219,7 +219,7 @@ def upload_pic():
 
           curr_dt = datetime.now()
           timestamp = int(round(curr_dt.timestamp()))
-          r = requests.post(url=urllib.parse.urljoin(nd_url, 'record_image_upload'), data={
+          r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'record_image_upload'), data={
             'm_key': user.get_m_key(),
             'image_hash': file_path,
             'target_user': nd_id,
