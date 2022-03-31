@@ -386,6 +386,14 @@ def record_image_upload():
   return {'success': True}
 
 
+@app.route('/all_users')
+def all_users():
+  users = mr.rds.smembers(mr.USERNAMES)
+  return {
+    'users': list(users)
+  }
+
+
 if __name__ == "__main__":
   mr.initialize()
 
