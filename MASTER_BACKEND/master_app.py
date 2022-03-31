@@ -1,20 +1,18 @@
+import json
 import logging
-from operator import ne
 import secrets
 import string
+import random
 
-from flask import Flask, redirect, url_for, render_template, request, flash, json, send_from_directory
-from datetime import date, datetime
+from flask import Flask, request
 import redis
 from abc import ABC
 
 from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS
 import bcrypt
-import time
 import requests
-import urllib
+import urllib.parse
 from utils import get_node_url
-import random
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -57,7 +55,7 @@ class MasterRedis(ABC):
     # Setup USER2MKEY
     self.rds.hset(self.USER2MKEY, "foo", "foo")
 
-    #setup USER2CLUS
+    # setup USER2CLUS
     self.rds.hset(self.USER2CLUS, "foo", "foo")
 
     for i in range(NUM_CLUSTERS):
@@ -173,7 +171,7 @@ def heartbeat():
   except Exception as e:
     logging.debug(e)
     return {'success': False}
-  
+
   username = mr.rds.hget(mr.MKEY2USER, mkey)
   if not mr.rds.hexists(mr.USER2TS, username) or int(timestamp) > int(mr.rds.hget(mr.USER2TS, username)):
     mr.rds.hset(mr.USER2LOC, username, location)
@@ -181,6 +179,7 @@ def heartbeat():
   return {
     'success': True
   }
+
 
 @app.route('/followers')
 def followers():
@@ -193,8 +192,9 @@ def followers():
     }
   except:
     return {
-      'followers': [] 
+      'followers': []
     }
+
 
 @app.route('/following')
 def following():
@@ -207,8 +207,9 @@ def following():
     }
   except:
     return {
-      'following': [] 
+      'following': []
     }
+
 
 @app.route('/pending_requests', methods=['POST'])
 def pending_requests():
@@ -218,7 +219,7 @@ def pending_requests():
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
-  
+
   name = mr.rds.hget(mr.MKEY2USER, m_key)
   set_name = name + mr.USER2PENDING_SUFFIX
   try:
@@ -228,8 +229,9 @@ def pending_requests():
     }
   except:
     return {
-      'pending_requests': [] 
+      'pending_requests': []
     }
+
 
 @app.route('/accept_request', methods=['POST'])
 def accept_request():
@@ -241,15 +243,15 @@ def accept_request():
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
-  
+
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.accept_follow_request(username2, username)
 
   node_ip = mr.rds.hget(mr.USER2IP, username)
   r = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'), data={
-        'username': username,
-        'key2_decrypt': key2_decrypt
-      })
+    'username': username,
+    'key2_decrypt': key2_decrypt
+  })
   try:
     response = json.loads(r.content)
     if not response['success']:
@@ -262,16 +264,17 @@ def accept_request():
     'success': True
   }
 
+
 @app.route('/send_request', methods=['POST'])
 def send_request():
   data = request.form
   try:
-    m_key = data['m_key'] # to identify the user
-    username2 = data['username2'] # to whom the user wants to follow
+    m_key = data['m_key']  # to identify the user
+    username2 = data['username2']  # to whom the user wants to follow
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
-  
+
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.add_follow_request(username, username2)
   return {
@@ -279,8 +282,10 @@ def send_request():
   }
 
 
-@app.route('/nearby_nodes')
+@app.route('/nearby_nodes', methods=['GET'])
 def get_nearby_nodes():
+  return {'nearby_nodes': '10.17.51.108'}
+  # TODO (chirag): Check this function
   username = request.args['name']
   try:
     cluster = mr.rds.hget(mr.USER2CLUS, username)
@@ -289,27 +294,23 @@ def get_nearby_nodes():
     clusters_added = set()
     clusters_added.add(cluster)
 
-    while len(nearby_nodes) < NUM_REPLICATIONS//5:
-      ind = random.rand() % len(users_in_cluster)
+    while len(nearby_nodes) < NUM_REPLICATIONS // 5:
+      ind = random.randint(a=0, b=10000) % len(users_in_cluster)
       if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
         nearby_nodes.append(users_in_cluster[ind])
 
     while len(nearby_nodes) < NUM_REPLICATIONS:
-      ind = random.rand() % NUM_CLUSTERS
+      ind = random.randint(a=0, b=10000) % NUM_CLUSTERS
       if ind not in clusters_added:
         users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
-        ind1 = random.rand() % len(users_in_cluster_temp)
+        ind1 = random.randint(a=0, b=10000) % len(users_in_cluster_temp)
         nearby_nodes.append(users_in_cluster_temp[ind])
         clusters_added.add(ind)
 
-    return {
-      'nearby_nodes' : nearby_nodes
-    }
+    return {'nearby_nodes': nearby_nodes}
 
   except Exception as e:
-    return {
-      'nearby_nodes' : []
-    }
+    return {'nearby_nodes': []}
 
   # Return list[str]: list of usernames where image should be stored
 
@@ -323,6 +324,7 @@ def get_images():
     'images': list(all_images)
   }
 
+
 @app.route('/get_node_for_image', methods=['POST'])
 def get_node_for_image():
   data = request.form
@@ -333,26 +335,27 @@ def get_node_for_image():
     logging.debug(e)
     return {'success': False, 'err': 0}
 
-  username = mr.rds.hget(mr.MKEY2USER, m_key) # User wanting the image
-  image_owner_set = image_hash + mr.IMG2USER_SUFFIX # Name of set of users containing the image
+  username = mr.rds.hget(mr.MKEY2USER, m_key)  # User wanting the image
+  image_owner_set = image_hash + mr.IMG2USER_SUFFIX  # Name of set of users containing the image
 
-  targetname = None # target username from which file should be accessed 
+  targetname = None  # target username from which file should be accessed
 
   cluster = mr.rds.hget(mr.USER2CLUS, username)
   owners = list(mr.rds.smembers(image_owner_set))
 
   for owner in owners:
-    if(mr.rds.hget(mr.USER2CLUS, owner) == cluster):
+    if (mr.rds.hget(mr.USER2CLUS, owner) == cluster):
       targetname = owner
       break
 
-  if(targetname == None):
+  if (targetname == None):
     targetname = owners[0]
 
   return {
     'success': True,
     'name': targetname
   }
+
 
 @app.route('/record_image_upload', methods=['POST'])
 def record_image_upload():
@@ -371,9 +374,8 @@ def record_image_upload():
   mr.add_user_to_image(target_user, image_hash)
 
 
-
 if __name__ == "__main__":
   mr.initialize()
-  
+
   logging.basicConfig(level=logging.DEBUG)
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)

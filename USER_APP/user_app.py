@@ -171,9 +171,9 @@ def upload_pic():
 
       # Process File
       # TODO: Do this asyncly on celery
-      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
-                        data={'node_ip': user.get_user_ip_address()})
-      response = r.text
+      r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
+                       params={'node_ip': user.get_user_ip_address()})
+      response = r.json()
 
       # TODO: check if file is actually bytes o.w load from filepath
       try:
