@@ -259,9 +259,34 @@ def download_file(name):
   return send_from_directory(app.config["UPLOAD_FOLDER"], name)
 
 
+def send_heartbeat():
+  while True:
+    user = User()
+    user.load()
+    if not user.is_logged_in():
+      flash('You are not logged in. Log in to view dashboard')
+      return render_template('login.html', user=user)
+    else:  
+      curr_dt = datetime.now()
+      timestamp = int(round(curr_dt.timestamp()))
+      import random
+      x, y = random.randint(0,100), random.randint(0,100)
+      location=f"{x},{y}"
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'heartbeat'), data={
+        'm_key': user.get_m_key(),
+        'location': location,
+        'timestamp': timestamp
+      })
+    from time import sleep
+    sleep(60.)
+
+
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
   app.add_url_rule(
     "/user_data/<name>", endpoint="download_file", build_only=True
   )
+  import threading
+  t = threading.Thread(target=send_heartbeat)
+  t.start()
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)
