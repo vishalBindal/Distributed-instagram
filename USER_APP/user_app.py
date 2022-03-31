@@ -166,7 +166,8 @@ def upload_pic():
       dir_path = app.config['UPLOAD_FOLDER']
       Path(dir_path).mkdir(parents=True, exist_ok=True)
 
-      file.save(os.path.join(dir_path, filename))
+      file_path = os.path.join(dir_path, filename)
+      file.save(file_path)
 
       # Process File
       # TODO: Do this asyncly on celery
@@ -176,12 +177,12 @@ def upload_pic():
 
       # TODO: check if file is actually bytes o.w load from filepath
       try:
-        nd_ids = dict(response)
+        nd_ids = response['nearby_nodes']
 
         # https://stackoverflow.com/questions/28426102/python-crypto-rsa-public-private-key-with-large-file
         aes_key = get_random_bytes(16)
         cipher = AES.new(aes_key, AES.MODE_EAX)
-        data = open(file.filename, 'rb').read()
+        data = open(file_path, 'rb').read()
         ciphertext, tag = cipher.encrypt_and_digest(data)
 
         # Now aes_key using encrypt key
@@ -206,7 +207,7 @@ def upload_pic():
             logging.debug(f'failed writing on node {nd_url}')
       except Exception as e:
         print(e)
-        return e
+        return {'success': False, 'err': str(e)}
 
       return redirect(url_for('download_file', name=filename))
 
