@@ -17,7 +17,7 @@ def get_ip_address():
   # ip_address = socket.gethostbyname(hostname)  # Private IP of Node
   # return ip_address
   addrs = netifaces.ifaddresses('en0')
-  return addrs[netifaces.AF_INET]['addr']
+  return addrs[netifaces.AF_INET][0]['addr']
 
 
 def allowed_file(filename: str):
