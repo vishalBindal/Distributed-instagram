@@ -1,56 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
-{#    <script src="https://kit.fontawesome.com/9ccf722acc.js" crossorigin="anonymous"></script>#}
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-    <title>{% block title %}{% endblock %}</title>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+  {#    <script src="https://kit.fontawesome.com/9ccf722acc.js" crossorigin="anonymous"></script>#}
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <title>{% block title %}{% endblock %}</title>
 </head>
 <body>
-    <header class="navbar" style="padding: 10px !important;">
-        <section class="navbar-section"></section>
-        <sectifon class="navbar-center">
-            <a href="/" class="navbar-brand mr-2"><strong><i class="fa-brands fa-instagram"></i> DistShare</strong></a>
-        </sectifon>
-        <section class="navbar-section">
-            {% if not user.is_logged_in() %}
-            <a href="/login" class="btn btn-link">Login</a>
-            <a href="/register" class="btn btn-link">Register</a>
-            {% endif %}
-            {% if user.is_logged_in() %}
-            <a href='/home' class='btn btn-link'>Home</a>
-            <a href="/profile" class="btn btn-link">Profile</a>
-            <a href="/logout" class="btn btn-link">Logout</a>
-            {% endif %}
-            <a href="https://github.com/tmibvishal/Heal-trip" class="btn btn-link"><i class="fab fa-github"></i> GitHub</a>
-        </section>
-    </header>
-    <div class="divider"></div>
-    <main>
-        {% block content %}{% endblock %}
-    </main>
-    <footer>
-        <div class="divider"></div>
-        <br>
-        <div class="container">
-            <div class="columns">
-                <div class="column col-1">
-                </div>
-                <div class="column col-10">
-                    <p class="textCenter"> Designed and built by <span class="chip">Vishal Singh</span>, <span class="chip">Vishal Bindal</span> and <span class="chip">Chirag Mohapatra</span> for COL733(Cloud) <img style="vertical-align:middle;" src="{{ url_for('static', filename='images/IITDlogo.png') }}" width="40px">IIT DELHI. Licensed under the <a href="https://github.com/picturepan2/spectre/blob/master/LICENSE" target="_blank">MIT License</a>.</p>
-                </div>
-                <div class="column col-1"></div>
+<header class="navbar" style="padding: 10px !important;">
+  <section class="navbar-section"></section>
+  <sectifon class="navbar-center">
+    <a href="/" class="navbar-brand mr-2"><strong><i class="fa-brands fa-instagram"></i> DistShare</strong></a>
+  </sectifon>
+  <section class="navbar-section">
+    {% if not user.is_logged_in() %}
+      <a href="/login" class="btn btn-link">Login</a>
+      <a href="/register" class="btn btn-link">Register</a>
+    {% endif %}
+    {% if user.is_logged_in() %}
+      <a href='/home' class='btn btn-link'>Home</a>
+      <a href="/profile" class="btn btn-link">Profile</a>
+
+      <button class='btn show-modal-2'>Logout</button>
+      <div class="modal modal-sm modal-2">
+        <div class="modal-container">
+          <div class="modal-header">
+            <div class="modal-header">
+              <div class="close-modal btn btn-clear float-right"></div>
+              <div class="text-bold modal-title">Do you want to delete your local storage and keys ?</div>
             </div>
+          </div>
+          <div class="modal-body">
+            <div class="content">
+              If you delete your local storage you will lose all reset your followings, and you will have you follow
+              your friends again since you will lose their decrypt keys.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <form action="/logout" method="POST"
+                    enctype="multipart/form-data">
+                <input type="checkbox" name="do_delete"> Delete my local storage
+                <input type="submit"/>
+              </form>
+          </div>
         </div>
-    </footer>
+      </div>
+
+
+
+    {% endif %}
+    <a href="https://github.com/tmibvishal/Heal-trip" class="btn btn-link"><i class="fab fa-github"></i> GitHub</a>
+  </section>
+</header>
+<div class="divider"></div>
+<main>
+  {% block content %}{% endblock %}
+</main>
+<footer>
+  <div class="divider"></div>
+  <br>
+  <div class="container">
+    <div class="columns">
+      <div class="column col-1">
+      </div>
+      <div class="column col-10">
+        <p class="textCenter"> Designed and built by <span class="chip">Vishal Singh</span>, <span class="chip">Vishal Bindal</span>
+          and <span class="chip">Chirag Mohapatra</span> for COL733(Cloud) <img style="vertical-align:middle;"
+                                                                                src="{{ url_for('static', filename='images/IITDlogo.png') }}"
+                                                                                width="40px">IIT DELHI. Licensed under
+          the <a href="https://github.com/picturepan2/spectre/blob/master/LICENSE" target="_blank">MIT License</a>.</p>
+      </div>
+      <div class="column col-1"></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+      $(".close-modal").on("click", function () {
+          $(this).closest('.modal-1').removeClass('active');
+          $(this).closest('.modal-2').removeClass('active');
+      });
+
+      $(".show-modal-1").on("click", function () {
+          $('.modal-1').addClass('active');
+      });
+
+      $(".show-modal-2").on("click", function () {
+          $('.modal-2').addClass('active');
+      });
+  </script>
+
 </body>
 </html>

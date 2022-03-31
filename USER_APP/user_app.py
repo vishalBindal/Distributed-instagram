@@ -29,13 +29,6 @@ def err():
   return render_template('error.html', error='toto')
 
 
-@app.route("/login")
-def login(name=''):
-  user = User()
-  user.load()
-  return render_template('login.html', user=user, name=name)
-
-
 @app.route('/follow_accepted', methods=['POST'])
 def follow_accepted():
   username2 = request.form.get('username2')
@@ -49,68 +42,94 @@ def follow_accepted():
     return {'success': True}
 
 
-@app.route("/login", methods=['POST'])
-def login_post():
-  name = request.form.get('name')
-  password = request.form.get('password')
+@app.route("/login", methods=['GET', 'POST'])
+def login(name=''):
+  if request.method == 'GET':
+    user = User()
+    user.load()
+    return render_template('login.html', user=user, name=name)
+  else:
+    name = request.form.get('name')
+    password = request.form.get('password')
 
-  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'login_user'), data={
-    'name': name,
-    'password': password
-  })
-  response = json.loads(r.content)
+    r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'login_user'), data={
+      'name': name,
+      'password': password
+    })
+    response = json.loads(r.content)
 
-  if not response['success']:
-    flash(response['err'])
-    return redirect(url_for('login', name=name))
+    if not response['success']:
+      flash(response['err'])
+      return redirect(url_for('login', name=name))
 
-  m_key, key2_encrypt = response['m_key'], response['key2_encrypt']
+    m_key, key2_encrypt = response['m_key'], response['key2_encrypt']
 
+    try:
+      log_user_in(username=name, key2_encrypt=key2_encrypt, m_key=m_key)
+    except UserMismatch:
+      flash(
+        'The user object in local storage is not the same as the one used to log in. Please either remove the local '
+        'storage or double-check that the data transferred from the previous device is accurate.')
+      return render_template('login.html', user=User())
+
+    return redirect(url_for('profile'))
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+  do_delete = 'off'
   try:
-    log_user_in(username=name, key2_encrypt=key2_encrypt, m_key=m_key)
-  except UserMismatch:
-    flash('The user object in local storage is not the same as the one used to log in. Please either remove the local '
-          'storage or double-check that the data transferred from the previous device is accurate.')
-    return render_template('login.html', user=User())
+    do_delete = request.form.get('do_delete', 'off')
+  except Exception as e:
+    err_msg = str(e)
+    render_template('error.html', error=err_msg)
 
-  return redirect(url_for('profile'))
-
-
-@app.route("/register")
-def register(username=''):
   user = User()
-  user.load()
-  return render_template('register.html', user=user)
+  if do_delete == 'on':
+    user.delete_rds()
+  else:
+    user.log_out()
+
+  return redirect('/')
 
 
-@app.route("/register", methods=['POST'])
-def register_post():
-  username = request.form.get('username')
-  password = request.form.get('password')
-
-  key2_encrypt, key2_decrypt = generate_key_pair()
-
-  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
-    'name': username,
-    'password': password,
-    'key2_encrypt': key2_encrypt,
-    'node_ip': get_ip_address()
-  })
-  response = json.loads(r.content)
-  success: bool = response['success']
-  if not success:
-    error_msg: str = response['error_msg']
-    flash(f'Error: {error_msg} Unsuccessful. Try again')
-    return render_template('register.html', user=User())
+@app.route("/register", methods=['GET', 'POST'])
+def register(username=''):
+  if request.method == 'GET':
+    user = User()
+    user.load()
+    return render_template('register.html', user=user)
   else:
     try:
-      m_key: str = response['m_key']
-      create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
-      # User saved the user to local storage
-      return redirect(url_for('profile'))
+      username = request.form.get('username')
+      password = request.form.get('password')
     except Exception as e:
-      flash(str(e))
+      err_msg = str(e)
+      render_template('error.html', error=err_msg)
+
+    key2_encrypt, key2_decrypt = generate_key_pair()
+
+    r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
+      'name': username,
+      'password': password,
+      'key2_encrypt': key2_encrypt,
+      'node_ip': get_ip_address()
+    })
+    response = json.loads(r.content)
+    success: bool = response['success']
+    if not success:
+      error_msg: str = response['error_msg']
+      flash(f'Error: {error_msg} Unsuccessful. Try again')
       return render_template('register.html', user=User())
+    else:
+      try:
+        m_key: str = response['m_key']
+        create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
+        # User saved the user to local storage
+        return redirect(url_for('profile'))
+      except Exception as e:
+        flash(str(e))
+        return render_template('register.html', user=User())
 
 
 @app.route("/profile/<username>")
@@ -148,16 +167,6 @@ def profile():
                            following=user.get_following(), images_blob_data=images_b64)
 
 
-@app.route("/")
-def index():
-  user = User()
-  user.load()
-  return render_template('front_page.html', user=user)
-
-
-# TODO: define more functions as given in doc
-
-
 @app.route('/upload_pic', methods=['POST'])
 def upload_pic():
   user = User()
@@ -193,10 +202,10 @@ def upload_pic():
                        params={'node_ip': user.get_user_ip_address()})
       response = r.json()
 
-      # TODO: check if file is actually bytes o.w load from filepath
       try:
         nd_ids = response['nearby_nodes']
 
+        # ------------ Encryption ------------
         # https://stackoverflow.com/questions/28426102/python-crypto-rsa-public-private-key-with-large-file
         aes_key = get_random_bytes(16)
         cipher = AES.new(aes_key, AES.MODE_EAX)
@@ -217,6 +226,9 @@ def upload_pic():
         # Decrypt example: https://pycryptodome.readthedocs.io/en/latest/src/examples.html
         # Decrypt aes_key using rsa and then decrypt image using that aes_key
 
+        file_size = os.path.getsize(file_path)
+        os.remove(file_path)
+
         for nd_id in nd_ids:
           nd_url = f'http://{nd_id}:8000'
           r = requests.post(url=urllib.parse.urljoin(nd_url, 'add_image_data'), data={
@@ -236,7 +248,8 @@ def upload_pic():
             'm_key': user.get_m_key(),
             'image_hash': file_path,
             'target_user': nd_id,
-            'timestamp': timestamp
+            'timestamp': timestamp,
+            'image_size': file_size
           })
 
           if not response['success']:
@@ -249,7 +262,7 @@ def upload_pic():
         logging.debug(f'error: {err_msg}')
         return redirect(url_for('error.html', error=err_msg))
 
-      return redirect(url_for('download_file', name=filename))
+      return redirect(url_for('view_file', name=filename))
 
 
 @app.route('/add_image_data', methods=['POST'])
@@ -287,13 +300,20 @@ def get_encrypted_image():
 
 
 @app.route('/uploads/<name>')
-def download_file(name):
+def view_file(name):
   return send_from_directory(app.config["UPLOAD_FOLDER"], name)
+
+
+@app.route("/")
+def index():
+  user = User()
+  user.load()
+  return render_template('front_page.html', user=user)
 
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
   app.add_url_rule(
-    "/user_data/<name>", endpoint="download_file", build_only=True
+    "/user_data/<name>", endpoint="view_file", build_only=True
   )
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)
