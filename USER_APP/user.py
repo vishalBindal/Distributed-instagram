@@ -30,7 +30,8 @@ class User:
     self.loaded = False
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
     self.rds_no_decode = redis.Redis(decode_responses=False, socket_timeout=5)
-    self.user_data: Dict[str, Any] = {'logged_in': 0, 'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
+    self.user_data: Dict[str, Any] = {'logged_in': 0, 'username': username, 'm_key': m_key,
+                                      'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': self.get_current_time_str()}
     self.key2_decrypt_following: Dict[str, str] = dict()
 
@@ -227,7 +228,15 @@ class User:
         return [], response['err']
       node_ip = response['node_ip']
 
-      if node_ip not in self.key2_decrypt_following:
+      r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_username_from_ip'), params={'node_ip': node_ip})
+      response = r.json()
+
+      if not response['success']:
+        logging.error(response['err'])
+        return [], response['err']
+
+      u_name = response['username']
+      if u_name not in self.key2_decrypt_following:
         err_msg = 'you are not following this user'
         logging.debug(err_msg)
         return [], err_msg
@@ -241,7 +250,7 @@ class User:
 
       encoded_info_dict = pickle.loads(encoded_info)
 
-      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.key2_decrypt_following[node_ip].encode()))
+      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.key2_decrypt_following[u_name].encode()))
       aes_key = cipher_rsa.decrypt(encoded_info_dict['encrypted_aes_key'])
 
       nonce, tag, ciphertext = encoded_info_dict['nonce'], encoded_info_dict['tag'], encoded_info_dict['ciphertext']

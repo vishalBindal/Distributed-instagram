@@ -13,11 +13,16 @@ import netifaces
 
 
 def get_ip_address():
+  # TODO: try to fix this
   hostname = socket.gethostname()  # baadalvm
   ip_address = socket.gethostbyname(hostname)  # Private IP of Node
   if ip_address.startswith('127'):
+
+    # for interface in netifaces.interfaces():
     addrs = netifaces.ifaddresses('en0')
-    return addrs[netifaces.AF_INET][0]['addr']
+    ip = addrs[netifaces.AF_INET][0]['addr']
+    return ip
+
   else:
     return ip_address
 

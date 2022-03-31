@@ -38,6 +38,7 @@ class MasterRedis(ABC):
   USER2IMG_SUFFIX = '_img'
 
   USER2IP = 'username_to_ip'
+  IP2USER = 'ip_to_username'
   USER2LOC = 'username_to_location'
   USER2TS = 'username_to_timestamp'
   IMG2USER_SUFFIX = '_user'
@@ -167,6 +168,7 @@ def new_user():
   mr.rds.hset(mr.USER2MKEY, name, m_key)
 
   mr.rds.hset(mr.USER2IP, name, node_ip)
+  mr.rds.hset(mr.IP2USER, node_ip, name)
 
   return {'success': True, 'm_key': m_key}
 
@@ -263,6 +265,18 @@ def pending_requests():
     return {
       'pending_requests': []
     }
+
+
+@app.route('/get_username_from_ip', methods=['GET'])
+def get_username_from_ip():
+  try:
+    node_ip = request.args['node_ip']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': str(e)}
+
+  username = mr.rds.hget(mr.IP2USER, node_ip)
+  return {'success': True, 'username': username}
 
 
 @app.route('/accept_request', methods=['POST'])
