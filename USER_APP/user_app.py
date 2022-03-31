@@ -262,7 +262,7 @@ def upload_pic():
         logging.debug(f'error: {err_msg}')
         return redirect(url_for('error.html', error=err_msg))
 
-      return redirect(url_for('view_file', name=filename))
+      return redirect(url_for('profile'))
 
 
 @app.route('/add_image_data', methods=['POST'])
@@ -309,6 +309,54 @@ def index():
   user = User()
   user.load()
   return render_template('front_page.html', user=user)
+
+
+@app.route('/all_users')
+def all_users():
+  r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'all_users'))
+  response = r.json()
+  all_users = response['users']
+  user = User()
+  user.load()
+  following = user.get_following()
+  following_set = set(following)
+  not_following = []
+  for username in all_users:
+    if username not in following_set and username != user.get_username():
+      not_following.append(username)
+  
+  return render_template('explore.html', following=following, not_following=not_following, user=user)
+
+
+@app.route('/follow/<username>')
+def follow_new_user(username):
+  user = User()
+  user.load()
+  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'send_request'), data={
+            'm_key': user.get_m_key(),
+            'username2': username
+          })
+  response = json.loads(r.content)
+  if not response['success']:
+      flash(response['err'])
+      return redirect(url_for('all_users'))
+  return redirect(url_for('profile'))
+
+
+@app.route('/accept_request/<username>')
+def accept_user(username):
+  user = User()
+  user.load()
+  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'accept_request'), data={
+            'm_key': user.get_m_key(),
+            'username2': username,
+            'key2_decrypt': user.get_key2_decrypt()
+          })
+  response = json.loads(r.content)
+  if not response['success']:
+      flash(response['err'])
+      return redirect(url_for('profile'))
+  return redirect(url_for('profile'))
 
 
 if __name__ == "__main__":
