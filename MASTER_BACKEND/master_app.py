@@ -8,6 +8,8 @@ import secrets
 import string
 
 import json
+from typing import List
+
 from flask import Flask, redirect, url_for, render_template, request, flash, send_from_directory
 from datetime import date, datetime
 
@@ -47,6 +49,8 @@ class MasterRedis(ABC):
   USER2FOLLOWING_SUFFIX = '_following'
   USER2PENDING_SUFFIX = '_pending'
 
+  USER2_DATASIZE = '_node2_datasize'
+
   def __init__(self, master_ip):
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
 
@@ -54,7 +58,7 @@ class MasterRedis(ABC):
     self.rds.flushall()
 
     # setup USERNAMES
-    #self.rds.sadd(self.USERNAMES, "foo")
+    # self.rds.sadd(self.USERNAMES, "foo")
     self.rds.sadd(self.USERNAMES, "user1")
     self.rds.sadd(self.USERNAMES, "user2")
     self.rds.sadd(self.USERNAMES, "user3")
@@ -93,6 +97,18 @@ class MasterRedis(ABC):
     # Image is stored at node corresponding to username
     set_name = image_hash + self.IMG2USER_SUFFIX
     self.rds.sadd(set_name, username)
+
+  def inc_node_datasize(self, username: str, datasize: float):
+    old = self.rds.hget(name=self.USER2_DATASIZE, key=username)
+    if old is None:
+      old = 0.0
+    self.rds.hset(name=self.USER2_DATASIZE, key=username, value=float(old) + float(datasize))
+
+  def get_node_datasize(self, username: str) -> float:
+    v = self.rds.hget(name=self.USER2_DATASIZE, key=username)
+    if v is None:
+      v = 0.0
+    return float(v)
 
   def add_follow_request(self, user_follower, user_profile):
     # "user_follower" wants to follow "user_profile"
@@ -264,10 +280,11 @@ def accept_request():
   mr.accept_follow_request(username2, username)
 
   node_ip = mr.rds.hget(mr.USER2IP, username)
-  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'), data={
-    'username': username,
-    'key2_decrypt': key2_decrypt
-  })
+  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'),
+                                              data={
+                                                'username': username,
+                                                'key2_decrypt': key2_decrypt
+                                              })
 
   try:
     response = json.loads(r.content)
@@ -301,47 +318,65 @@ def send_request():
 
 @app.route('/nearby_nodes', methods=['GET'])
 def get_nearby_nodes():
-  return {'nearby_nodes': ['10.17.51.108']}
-  # TODO (chirag): Check this function
+  # return {'nearby_nodes': ['10.17.51.108']}
   username = request.args['name']
   try:
     all_clusters = mr.rds.hgetall(mr.USER2CLUS)
     cluster = mr.rds.hget(mr.USER2CLUS, username)
-    users_in_cluster = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
+    users_in_cluster: List[str] = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
     nearby_nodes = []
     clusters_added = set()
     clusters_added.add(int(cluster))
 
-    while len(nearby_nodes) < NUM_REPLICATIONS//2:
-      ind = random.randint(0,len(users_in_cluster) - 1)
+    while len(nearby_nodes) < NUM_REPLICATIONS // 2:
+      # ind = random.randint(0, len(users_in_cluster) - 1)
+
+      indices = [i for i in range(len(users_in_cluster))]
+
+      def get_datasize(i: int):
+        username_i: str = users_in_cluster[i]
+        return mr.get_node_datasize(username_i)
+
+      ind = min(indices, key=get_datasize)
+
       if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
         nearby_nodes.append(users_in_cluster[ind])
 
     while len(nearby_nodes) < NUM_REPLICATIONS:
-      ind = random.randint(0,NUM_CLUSTERS-1)
+      ind = random.randint(0, NUM_CLUSTERS - 1)
       if ind not in clusters_added:
         users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(ind)))
-        ind1 = random.randint(0,len(users_in_cluster_temp) - 1)
+
+        # ind1 = random.randint(0, len(users_in_cluster_temp) - 1)
+        indices = [i for i in range(len(users_in_cluster_temp))]
+
+        def get_datasize(i: int):
+          username_i: str = users_in_cluster_temp[i]
+          return mr.get_node_datasize(username_i)
+
+        ind1 = min(indices, key=get_datasize)
+
         nearby_nodes.append(users_in_cluster_temp[ind1])
         clusters_added.add(ind)
 
     return {
-      'nearby_nodes' : nearby_nodes
+      'nearby_nodes': nearby_nodes
     }
 
   except Exception as e:
     return {
-      'nearby_nodes' : [],
-      'all_clusters' : all_clusters,
-      'cluster' : cluster,
-      'users_in_cluster' : users_in_cluster,
-      'temp_cluster' : users_in_cluster_temp,
-      'exception' : str(e)
+      'nearby_nodes': [],
+      'all_clusters': all_clusters,
+      'cluster': cluster,
+      'users_in_cluster': users_in_cluster,
+      'temp_cluster': users_in_cluster_temp,
+      'exception': str(e)
     }
 
   # Return list[str]: list of usernames where image should be stored
 
-@app.route('/reset_following', meothod=['POST'])
+
+@app.route('/reset_following', method=['POST'])
 def reset_following():
   data = request.form
   try:
@@ -353,12 +388,14 @@ def reset_following():
   # TODO (bindal): Set following of username = []
   pass
 
+
 @app.route('/get_username_ip')
 def get_username_ip():
   username = request.args['name']
   return {
     'node_ip': mr.rds.hget(mr.USER2IP, username)
   }
+
 
 @app.route('/get_images')
 def get_images():
@@ -411,6 +448,7 @@ def record_image_upload():
     image_hash = data['image_hash']
     target_user = data['target_user']
     timestamp = data['timestamp']
+    image_size = data['image_size']
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
@@ -418,6 +456,7 @@ def record_image_upload():
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.add_image_to_user(username, image_hash, timestamp)
   mr.add_user_to_image(target_user, image_hash)
+  mr.inc_node_datasize(target_user, float(image_size))
   return {'success': True}
 
 
