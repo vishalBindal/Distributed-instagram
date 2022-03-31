@@ -210,7 +210,9 @@ def upload_pic():
 
         encoded_info_dict = {'nonce': cipher.nonce, 'ciphertext': ciphertext, 'tag': tag,
                              'encrypted_aes_key': encrypted_aes_key}
-        encoded_info = pickle.dumps(encoded_info_dict)
+
+        bytes_obj = pickle.dumps(encoded_info_dict)
+        encoded_info = base64.b64encode(bytes_obj).decode('utf-8')
 
         # Decrypt example: https://pycryptodome.readthedocs.io/en/latest/src/examples.html
         # Decrypt aes_key using rsa and then decrypt image using that aes_key
@@ -278,10 +280,8 @@ def get_encrypted_image():
 
   user = User()
   user.load()
-  if user.rds_no_decode.hexists(user.IMAGE_DATA, key=image_hash):
-    bytes_obj = user.rds_no_decode.hget(user.IMAGE_DATA, key=image_hash)
-    data = base64.b64encode(bytes_obj).decode('utf-8')
-    return {'success': True, 'encoded_info': data}
+  if user.rds.hexists(user.IMAGE_DATA, key=image_hash):
+    return {'success': True, 'encoded_info': user.rds.hget(user.IMAGE_DATA, key=image_hash)}
   else:
     return {'success': False, 'err': 'this image hash not in redis'}
 
