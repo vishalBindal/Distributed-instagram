@@ -1,11 +1,15 @@
+import pickle
 from datetime import datetime
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 import redis
 import requests
 import urllib.parse
+
+from Cryptodome.Cipher import PKCS1_OAEP, AES
+from Cryptodome.PublicKey import RSA
 
 from config import MASTER_URL
 from utils import get_ip_address
@@ -147,6 +151,85 @@ class User:
   def add_image_data(self, unique_hash: str, encoded_info: str):
     self.rds.hset(name=self.IMAGE_DATA, key=unique_hash, value=encoded_info)
     pass
+
+  def get_my_images_for(self) -> Tuple[List[str], str]:
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_images'), params={'name': self.get_username()})
+    image_hashes = r.json()['images']
+
+    images_b64 = []
+    for image_hash in image_hashes:
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'get_node_for_image'), data={
+        'm_key': self.get_m_key(),
+        'image_hash': image_hash
+      })
+      response = json.loads(r.content)
+      if not response['success']:
+        logging.error(response['err'])
+        return [], response['err']
+      node_ip = response['node_ip']
+
+      if self.get_key2_decrypt() == '':
+        err_msg = 'you don\'t have your own decrypt key'
+        logging.debug(err_msg)
+        return [], err_msg
+
+      node_url = f'http://{node_ip}:8000'
+      r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
+        'image_hash': image_hash
+      })
+      encoded_info = r.json()['encoded_info']
+
+      encoded_info_dict = pickle.loads(encoded_info)
+
+      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.get_key2_decrypt()))
+      aes_key = cipher_rsa.decrypt(encoded_info_dict['encrypted_aes_key'])
+
+      nonce, tag, ciphertext = encoded_info_dict['nonce'], encoded_info_dict['ciphertext'], encoded_info_dict['tag']
+      cipher = AES.new(aes_key, AES.MODE_EAX, nonce)
+      data = cipher.decrypt_and_verify(ciphertext, tag)
+      images_b64.append(data.decode('utf-8'))
+    return images_b64, ''
+
+  def get_images_for(self, following: str) -> Tuple[List[str], str]:
+    # get_images
+    # get_node_for_image
+
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_images'), params={'name': following})
+    image_hashes = r.json()['images']
+
+    images_b64 = []
+    for image_hash in image_hashes:
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'get_node_for_image'), data={
+        'm_key': self.get_m_key(),
+        'image_hash': image_hash
+      })
+      response = json.loads(r.content)
+      if not response['success']:
+        logging.error(response['err'])
+        return [], response['err']
+      node_ip = response['node_ip']
+
+      if node_ip not in self.key2_decrypt_following:
+        err_msg = 'you are not following this user'
+        logging.debug(err_msg)
+        return [], err_msg
+
+      node_url = f'http://{node_ip}:8000'
+      r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
+        'image_hash': image_hash
+      })
+      encoded_info = r.json()['encoded_info']
+
+      encoded_info_dict = pickle.loads(encoded_info)
+
+      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.key2_decrypt_following[node_ip].encode()))
+      aes_key = cipher_rsa.decrypt(encoded_info_dict['encrypted_aes_key'])
+
+      nonce, tag, ciphertext = encoded_info_dict['nonce'], encoded_info_dict['ciphertext'], encoded_info_dict['tag']
+      cipher = AES.new(aes_key, AES.MODE_EAX, nonce)
+      data = cipher.decrypt_and_verify(ciphertext, tag)
+      images_b64.append(data.decode('utf-8'))
+    return images_b64, ''
 
 
 def log_user_in(username: str, m_key: str, key2_encrypt: str):

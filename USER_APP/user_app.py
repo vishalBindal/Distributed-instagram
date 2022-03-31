@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import pickle
+import base64
 
 from Cryptodome.Cipher import AES, PKCS1_OAEP
 from Cryptodome.PublicKey import RSA
@@ -128,9 +129,10 @@ def profile():
     flash('You are not logged in. Log in to view profile')
     return render_template('login.html', user=user)
   else:
-    data = open(
-      '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png',
-      'rb').read()
+    path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
+    with open(path, "rb") as image_file:
+      data = base64.b64encode(image_file.read()).decode("utf-8")
+
     return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
                            following=user.get_following(), images_blob_data=[data])
 
@@ -187,7 +189,8 @@ def upload_pic():
         # https://stackoverflow.com/questions/28426102/python-crypto-rsa-public-private-key-with-large-file
         aes_key = get_random_bytes(16)
         cipher = AES.new(aes_key, AES.MODE_EAX)
-        data = open(file_path, 'rb').read()
+        with open(file_path, "rb") as image_file:
+          data = base64.b64encode(image_file.read())  # .decode("utf-8")
         ciphertext, tag = cipher.encrypt_and_digest(data)
 
         # Now aes_key using encrypt key

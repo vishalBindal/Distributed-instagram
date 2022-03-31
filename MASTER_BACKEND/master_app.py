@@ -357,12 +357,13 @@ def get_node_for_image():
       targetname = owner
       break
 
+  targetname = mr.rds.hget(mr.USER2IP, targetname)
   if (targetname == None):
     targetname = owners[0]
 
   return {
     'success': True,
-    'name': targetname
+    'node_ip': targetname
   }
 
 
