@@ -280,6 +280,7 @@ def accept_request():
   mr.accept_follow_request(username2, username)
 
   node_ip = mr.rds.hget(mr.USER2IP, username2)
+  print(f'sending decrypt key to {node_ip}')
   r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'store_key2_decrypt'),
                                               data={
                                                 'username': username,
