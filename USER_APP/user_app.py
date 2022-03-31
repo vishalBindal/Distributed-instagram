@@ -164,7 +164,7 @@ def profile():
 
     images_b64 = a[0]
     return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
-                           following=user.get_following(), images_blob_data=images_b64)
+                           following=user.get_following(), pending=user.get_pending_requests(), images_blob_data=images_b64)
 
 
 @app.route('/upload_pic', methods=['POST'])
