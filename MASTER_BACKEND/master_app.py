@@ -1,18 +1,26 @@
-import json
 import logging
+from operator import ne
 import secrets
 import string
-import random
+import logging
+from operator import ne
+import secrets
+import string
 
-from flask import Flask, request
+import json
+from flask import Flask, redirect, url_for, render_template, request, flash, send_from_directory
+from datetime import date, datetime
+
 import redis
 from abc import ABC
 
 from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS
 import bcrypt
+import time
 import requests
 import urllib.parse
 from utils import get_node_url
+import random
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
@@ -248,10 +256,11 @@ def accept_request():
   mr.accept_follow_request(username2, username)
 
   node_ip = mr.rds.hget(mr.USER2IP, username)
-  r = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'), data={
+  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'), data={
     'username': username,
     'key2_decrypt': key2_decrypt
   })
+
   try:
     response = json.loads(r.content)
     if not response['success']:

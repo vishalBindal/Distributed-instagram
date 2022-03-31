@@ -95,7 +95,6 @@ def register_post():
     'key2_encrypt': key2_encrypt,
     'node_ip': get_ip_address()
   })
-
   response = json.loads(r.content)
   success: bool = response['success']
   if not success:
