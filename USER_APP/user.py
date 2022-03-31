@@ -7,8 +7,8 @@ import redis
 import requests
 import urllib.parse
 
-from USER_APP.config import MASTER_URL
-from USER_APP.utils import get_ip_address
+from config import MASTER_URL
+from utils import get_ip_address
 
 
 class UserMismatch(Exception):

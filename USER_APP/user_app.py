@@ -13,7 +13,7 @@ from datetime import datetime
 import requests
 from werkzeug.utils import secure_filename
 
-from USER_APP.user import User, log_user_in, UserMismatch, create_new_user
+from user import User, log_user_in, UserMismatch, create_new_user
 from utils import get_ip_address, generate_key_pair, allowed_file
 from config import MASTER_URL, app
 from pathlib import Path
