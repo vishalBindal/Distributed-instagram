@@ -75,10 +75,10 @@ class User:
 
   def get_pending_requests(self):
     r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'pending_requests'),
-                                                data={'mkey': self.get_m_key()})
+                                                data={'m_key': self.get_m_key()})
 
     data = json.loads(r.content)
-    pending_requests: List[str] = data['following']
+    pending_requests: List[str] = data['pending_requests']
     return pending_requests
 
   def accept_request(self, username2: str) -> bool:
