@@ -341,6 +341,7 @@ def get_nearby_nodes():
 
       if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
         nearby_nodes.append(users_in_cluster[ind])
+        users_in_cluster.pop(ind)
 
     while len(nearby_nodes) < NUM_REPLICATIONS:
       ind = random.randint(0, NUM_CLUSTERS - 1)
