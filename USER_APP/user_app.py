@@ -212,7 +212,7 @@ def upload_pic():
       return redirect(url_for('download_file', name=filename))
 
 
-@app.route('/add_image_data')
+@app.route('/add_image_data', methods=['POST'])
 def add_image_data():
   data = request.form
   try:
