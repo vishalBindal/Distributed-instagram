@@ -61,11 +61,8 @@ class MasterRedis(ABC):
     self.rds.hset(self.USER2MKEY, "foo", "foo")
 
     #setup USER2CLUS
-    #self.rds.hset(self.USER2CLUS, "foo", "foo")
-    self.rds.hset(self.USER2CLUS, "user1", "1, 1")
-    self.rds.hset(self.USER2CLUS, "user2", "1, 2")
-    self.rds.hset(self.USER2CLUS, "user3", "100, 100")
-
+    self.rds.hset(self.USER2CLUS, "foo", "foo")
+    
     for i in range(NUM_CLUSTERS):
       self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
 
@@ -73,6 +70,9 @@ class MasterRedis(ABC):
     self.rds.hset(self.USER2IP, "foo", "foo")
     # Setup USER2LOC
     self.rds.hset(self.USER2LOC, "foo", "foo")
+    self.rds.hset(self.USER2LOC, "user1", "1,1")
+    self.rds.hset(self.USER2LOC, "user2", "1,2")
+    self.rds.hset(self.USER2LOC, "user3", "100,100")
     # Setup USER2TS
     self.rds.hset(self.USER2TS, "foo", "foo")
 
@@ -296,12 +296,12 @@ def get_nearby_nodes():
     clusters_added.add(cluster)
 
     while len(nearby_nodes) < NUM_REPLICATIONS//5:
-      ind = random.rand() % len(users_in_cluster)
+      ind = random.randint() % len(users_in_cluster)
       if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
         nearby_nodes.append(users_in_cluster[ind])
 
     while len(nearby_nodes) < NUM_REPLICATIONS:
-      ind = random.rand() % NUM_CLUSTERS
+      ind = random.randint() % NUM_CLUSTERS
       if ind not in clusters_added:
         users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
         ind1 = random.rand() % len(users_in_cluster_temp)

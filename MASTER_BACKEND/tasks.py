@@ -5,9 +5,9 @@ from master_app import get_master_rds
 from config import NUM_CLUSTERS, KMEANS_INTERVAL
 import time
 
-app = Celery('tasks', backend='redis://localhost', broker='pyamqp://guest@localhost:5672//')
+#app = Celery('tasks', backend='redis://localhost', broker='pyamqp://guest@localhost:5672//')
 
-@app.task
+#@app.task
 def run_kmeans():
     while True:
         mr = get_master_rds()
@@ -18,6 +18,8 @@ def run_kmeans():
 
         user_to_loc = mr.rds.hgetall(mr.USER2LOC)
 
+        #print(user_to_loc)
+
         for username in user_to_loc:
             location = user_to_loc[username]
             if location == "foo":
@@ -27,6 +29,8 @@ def run_kmeans():
             user_to_id[username] = ids
             locs.append(location)
             ids += 1
+
+        #print(locs)
 
         locs = np.array(locs)
         kmeans = KMeans(n_clusters=NUM_CLUSTERS, random_state=0).fit(locs)
@@ -42,7 +46,7 @@ def run_kmeans():
 
         for i in range(len(usernames)):
             int_val = int(user_clusters[i])
-            mr.rds.hset(mr.USER2LOC, usernames[i], int_val)
+            mr.rds.hset(mr.USER2CLUS, usernames[i], int_val)
             if int_val not in clus_to_users:
                 clus_to_users[int_val] = []
             clus_to_users[int_val].append(usernames[i])
@@ -51,8 +55,10 @@ def run_kmeans():
             while mr.rds.scard(mr.CLUS2USERS_PREFIX + str(i)) > 0:
                 mr.rds.spop(mr.CLUS2USERS_PREFIX + str(i))
             
-            for value in clus_to_users[i].values():
-                mr.rds.add(mr.CLUS2USERS_PREFIX + str(i), value)
+            for value in clus_to_users[i]:
+                mr.rds.sadd(mr.CLUS2USERS_PREFIX + str(i), value)
+
+        #print(mr.rds.hgetall(mr.USER2CLUS))
 
         time.sleep(KMEANS_INTERVAL)
 
