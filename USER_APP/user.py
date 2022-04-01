@@ -230,19 +230,13 @@ class User:
         return [], response['err']
       node_ip = response['node_ip']
 
-      r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_username_from_ip'), params={'node_ip': node_ip})
-      response = r.json()
 
-      if not response['success']:
-        logging.error(response['err'])
-        return [], response['err']
-
-      u_name = response['username']
-      if u_name not in self.key2_decrypt_following:
+      if following not in self.key2_decrypt_following:
         err_msg = 'you are not following this user'
         logging.debug(err_msg)
         return [], err_msg
 
+      # u_name = response['username']
       node_url = f'http://{node_ip}:8000'
       r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
         'image_hash': image_hash
@@ -252,7 +246,7 @@ class User:
 
       encoded_info_dict = pickle.loads(encoded_info)
 
-      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.key2_decrypt_following[u_name].encode()))
+      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.key2_decrypt_following[following].encode()))
       aes_key = cipher_rsa.decrypt(encoded_info_dict['encrypted_aes_key'])
 
       nonce, tag, ciphertext = encoded_info_dict['nonce'], encoded_info_dict['tag'], encoded_info_dict['ciphertext']
