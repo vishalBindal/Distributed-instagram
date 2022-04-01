@@ -210,7 +210,7 @@ def upload_pic():
       response = r.json()
 
       try:
-        nd_ids = response['nearby_nodes']
+        nearby_users = response['nearby_nodes']
 
         # ------------ Encryption ------------
         # https://stackoverflow.com/questions/28426102/python-crypto-rsa-public-private-key-with-large-file
@@ -236,7 +236,10 @@ def upload_pic():
         file_size = os.path.getsize(file_path)
         os.remove(file_path)
 
-        for nd_id in nd_ids:
+        for nearby_user in nearby_users:
+          r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_username_ip'), params={'name': nearby_user})
+          nd_id = r.json()['node_ip']
+
           nd_url = f'http://{nd_id}:8000'
           r = requests.post(url=urllib.parse.urljoin(nd_url, 'add_image_data'), data={
             'unique_hash': file_path,
@@ -383,9 +386,7 @@ def accept_user(username):
 
 @app.route('/ping')
 def ping():
-  return {
-    'success': True
-  }
+  return {'success': True}
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)

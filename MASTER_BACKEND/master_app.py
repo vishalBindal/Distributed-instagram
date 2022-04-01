@@ -368,16 +368,22 @@ def get_node_for_image():
   cluster = mr.rds.hget(mr.USER2CLUS, username)
   owners = list(mr.rds.smembers(image_owner_set))
 
+
   for owner in owners:
+    print(owner)
     if mr.rds.hget(mr.USER2CLUS, owner) == cluster:
       node_ip = mr.rds.hget(mr.USER2IP, owner)
+      print(node_ip)
       try:
         r = requests.get(url=urllib.parse.urljoin(get_node_url(node_ip), 'ping'))
         response = r.json()
-        if response['success']:
-          targetname = owner
-          break
-      except:
+        print(response)
+        if not response['success']:
+          pass
+        targetname = owner
+        break
+      except Exception as e:
+        logging.debug(e)
         pass
 
   if targetname is None:
@@ -416,6 +422,6 @@ def all_users():
 
 
 if __name__ == "__main__":
-  mr.initialize()
+  # mr.initialize()
   logging.basicConfig(level=logging.DEBUG)
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)
