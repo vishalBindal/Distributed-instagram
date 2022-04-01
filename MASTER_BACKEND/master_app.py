@@ -308,7 +308,7 @@ def send_request():
 @app.route('/nearby_nodes', methods=['GET'])
 def get_nearby_nodes():
   """returns list[str]: list of usernames where image should be stored"""
-  # return {'nearby_nodes': ['10.17.51.108']}
+  return {'nearby_nodes': ['10.17.51.108']}
 
   if 'name' not in request.args:
     return {'success': False, 'nearby_nodes': [], 'err': 'name not sent'}
@@ -434,6 +434,5 @@ def all_users():
 
 if __name__ == "__main__":
   mr.initialize()
-
   logging.basicConfig(level=logging.DEBUG)
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)
