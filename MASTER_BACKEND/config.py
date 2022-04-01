@@ -3,3 +3,12 @@ MASTER_URL = f'http://{MASTER_IP}:8000'
 NUM_CLUSTERS = 2
 NUM_REPLICATIONS = 2
 KMEANS_INTERVAL = 3600
+
+import pathlib
+CUR_DIR = str(pathlib.Path().resolve())
+
+if CUR_DIR.endswith('MASTER_BACKEND'):
+  UPLOAD_FOLDER = './FRONT_END/src'
+else:
+  UPLOAD_FOLDER = 'MASTER_BACKEND/FRONT_END/src'
+

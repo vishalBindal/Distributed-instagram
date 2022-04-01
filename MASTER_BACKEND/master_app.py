@@ -16,7 +16,7 @@ from datetime import date, datetime
 import redis
 from abc import ABC
 
-from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS
+from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS, UPLOAD_FOLDER
 import bcrypt
 import time
 import requests
@@ -27,6 +27,7 @@ import threading
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 import os
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -473,7 +474,7 @@ def visualise():
       fontsize = 10, fontweight ='bold',
       color ='grey')
 
-  fig.savefig(os.path.join(IMG_FOLDER, 'storage.png'))
+  fig.savefig(os.path.join(UPLOAD_FOLDER, 'storage.png'))
 
   user_data = {}
   x_data = {}
@@ -495,7 +496,7 @@ def visualise():
       ax.annotate(user_data[cluster_id][i], (x_data[cluster_id][i], y_data[cluster_id][i]))
 
   ax.legend()
-  fig.savefig(os.path.join(IMG_FOLDER, 'clusters.png'))
+  fig.savefig(os.path.join(UPLOAD_FOLDER, 'clusters.png'))
 
   return render_template('visualise.html')
 
