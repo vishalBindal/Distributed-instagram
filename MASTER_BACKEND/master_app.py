@@ -136,19 +136,21 @@ def new_user():
   hashed_password = bcrypt.hashpw(password.encode(), salt)
   # To check password: if bcrypt.checkpw(passwd, hashed): print("match")
 
-  mr.rds.sadd(mr.USERNAMES, name)
-  mr.rds.hset(mr.USER2PASS, name, hashed_password)
-  mr.rds.hset(mr.USER2KEY2E, name, key2_encrypt)
-  mr.rds.hset(mr.USER2LOC, name, location)
+  transaction = mr.rds.pipeline()
+
+  transaction.sadd(mr.USERNAMES, name)
+  transaction.hset(mr.USER2PASS, name, hashed_password)
+  transaction.hset(mr.USER2KEY2E, name, key2_encrypt)
+  transaction.hset(mr.USER2LOC, name, location)
 
   m_key = generate_mkey(name)
 
-  mr.rds.hset(mr.MKEY2USER, m_key, name)
-  mr.rds.hset(mr.USER2MKEY, name, m_key)
+  transaction.hset(mr.MKEY2USER, m_key, name)
+  transaction.hset(mr.USER2MKEY, name, m_key)
 
-  mr.rds.hset(mr.USER2IP, name, node_ip)
-  mr.rds.hset(mr.IP2USER, node_ip, name)
-
+  transaction.hset(mr.USER2IP, name, node_ip)
+  transaction.hset(mr.IP2USER, node_ip, name)
+  transaction.execute()
   return {'success': True, 'm_key': m_key}
 
 
@@ -187,8 +189,10 @@ def heartbeat():
 
   username = mr.rds.hget(mr.MKEY2USER, mkey)
   if not mr.rds.hexists(mr.USER2TS, username) or int(timestamp) > int(mr.rds.hget(mr.USER2TS, username)):
-    mr.rds.hset(mr.USER2LOC, username, location)
-    mr.rds.hset(mr.USER2TS, username, timestamp)
+    transaction = mr.rds.pipeline()
+    transaction.hset(mr.USER2LOC, username, location)
+    transaction.hset(mr.USER2TS, username, timestamp)
+    transaction.execute()
   return {'success': True}
 
 
