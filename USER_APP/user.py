@@ -117,13 +117,15 @@ class User:
 
   def save(self):
     self.loaded = True
-    self.rds.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
+    transaction = self.rds.pipeline()
+    transaction.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
     # for key in self.user_data:
     #   if self.user_data[key] == '':
     #     raise Exception('Can\'t save. The local object is not populated fully.')
-    self.rds.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
+    transaction.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
     if len(self.key2_decrypt_following) > 0:
-      self.rds.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
+      transaction.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
+    transaction.execute()
 
   @staticmethod
   def get_current_time_str() -> str:
@@ -171,7 +173,6 @@ class User:
 
   def add_image_data(self, unique_hash: str, encoded_info: str):
     self.rds.hset(name=self.IMAGE_DATA, key=unique_hash, value=encoded_info)
-    pass
 
   def get_my_images_for(self) -> Tuple[List[str], str]:
     r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_images'), params={'name': self.get_username()})
