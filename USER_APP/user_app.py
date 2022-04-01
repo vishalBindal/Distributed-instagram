@@ -51,6 +51,9 @@ def login(name=''):
     user.load()
     return render_template('login.html', user=user, name=name)
   else:
+    if 'name' not in request.form or 'password' not in request.form:
+      render_template('error.html', error='username or password is not sent to server', user=User())
+
     name = request.form.get('name')
     password = request.form.get('password')
 
@@ -81,35 +84,26 @@ def login(name=''):
 def logout():
   user = User()
   user.load()
-
-  do_delete = 'off'
-  try:
-    do_delete = request.form.get('do_delete', 'off')
-  except Exception as e:
-    err_msg = str(e)
-    render_template('error.html', error=err_msg, user=user)
-
+  do_delete = request.form.get('do_delete', 'off')
   if do_delete == 'on':
     user.delete_rds()
   else:
     user.log_out()
-
   return redirect('/')
 
 
 @app.route("/register", methods=['GET', 'POST'])
-def register(username=''):
+def register():
   if request.method == 'GET':
     user = User()
     user.load()
     return render_template('register.html', user=user)
   else:
-    try:
-      username = request.form.get('username')
-      password = request.form.get('password')
-    except Exception as e:
-      err_msg = str(e)
-      render_template('error.html', error=err_msg, user=User())
+    if 'username' not in request.form or 'password' not in request.form:
+      render_template('error.html', error='username or password is not sent to server', user=User())
+
+    username = request.form.get('username')
+    password = request.form.get('password')
 
     key2_encrypt, key2_decrypt = generate_key_pair()
 
@@ -122,12 +116,12 @@ def register(username=''):
     response = json.loads(r.content)
     success: bool = response['success']
     if not success:
-      error_msg: str = response['error_msg']
+      error_msg = response['err']
       flash(f'Error: {error_msg} Unsuccessful. Try again')
       return render_template('register.html', user=User())
     else:
       try:
-        m_key: str = response['m_key']
+        m_key = response['m_key']
         create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
         # User saved the user to local storage
         return redirect(url_for('profile'))
@@ -137,7 +131,7 @@ def register(username=''):
 
 
 @app.route("/profile/<username>")
-def profile2(username):
+def other_profile(username):
   user = User()
   user.load()
   a = user.get_images_for(username)
@@ -147,7 +141,7 @@ def profile2(username):
   images_b64 = a[0]
   user2 = User(username=username)
   return render_template('profile.html', pronoun=username, user=user2, followers=user2.get_followers(),
-                         following=user2.get_following(), image_blob_data=images_b64)
+                         following=user2.get_following(), images_blob_data=images_b64)
 
 
 @app.route("/profile")
@@ -208,7 +202,6 @@ def upload_pic():
       file.save(file_path)
 
       # Process File
-      # TODO: Do this asyncly on celery
       r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
                        params={'node_ip': user.get_user_ip_address()})
       response = r.json()
