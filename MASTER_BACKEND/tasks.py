@@ -43,20 +43,20 @@ def run_kmeans():
         user_clusters = kmeans.predict(to_predict)
         clus_to_users = {}
 
+        transaction = mr.rds.pipeline()
         for i in range(len(usernames)):
             int_val = int(user_clusters[i])
-            mr.rds.hset(mr.USER2CLUS, usernames[i], int_val)
+            transaction.hset(mr.USER2CLUS, usernames[i], int_val)
             if int_val not in clus_to_users:
                 clus_to_users[int_val] = []
             clus_to_users[int_val].append(usernames[i])
 
         for i in range(NUM_CLUSTERS):
-            while mr.rds.scard(mr.CLUS2USERS_PREFIX + str(i)) > 0:
-                mr.rds.spop(mr.CLUS2USERS_PREFIX + str(i))
-            
+            transaction.delete(mr.CLUS2USERS_PREFIX + str(i))
             for value in clus_to_users[i]:
-                mr.rds.sadd(mr.CLUS2USERS_PREFIX + str(i), value)
+                transaction.sadd(mr.CLUS2USERS_PREFIX + str(i), value)
 
+        transaction.execute()
         print(mr.rds.hgetall(mr.USER2CLUS))
 
         time.sleep(KMEANS_INTERVAL)
