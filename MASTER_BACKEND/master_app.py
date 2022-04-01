@@ -28,6 +28,9 @@ import threading
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
 
+import os
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+IMG_FOLDER = os.path.join(APP_ROOT, 'FRONT_END', 'src')
 
 class MasterRedis(ABC):
   USERNAMES = 'usernames'
@@ -396,6 +399,7 @@ def get_node_for_image():
   owners = list(mr.rds.smembers(image_owner_set))
 
   for owner in owners:
+    owner = mr.rds.hget(mr.IP2USER, owner)
     if mr.rds.hget(mr.USER2CLUS, owner) == cluster:
       node_ip = mr.rds.hget(mr.USER2IP, owner)
       try:
@@ -441,6 +445,77 @@ def all_users():
   users = mr.rds.smembers(mr.USERNAMES)
   return {'success': True, 'users': list(users)}
 
+
+import matplotlib.pyplot as plt
+
+@app.route('/')
+def visualise():
+  users = list(mr.rds.smembers(mr.USERNAMES))
+  storage = []
+  locations = []
+  clusters = []
+  for user in users:
+    storage.append(mr.rds.hget(mr.USER2_DATASIZE, user))
+    locations.append(mr.rds.hget(mr.USER2LOC, user))
+    clusters.append(mr.rds.hget(mr.USER2CLUS, user))
+
+  fig, ax = plt.subplots()
+
+  # Horizontal Bar Plot
+  ax.barh(users, storage)
+
+  # Remove axes splines
+  for s in ['top', 'bottom', 'left', 'right']:
+    ax.spines[s].set_visible(False)
+
+  # Remove x, y Ticks
+  ax.xaxis.set_ticks_position('none')
+  ax.yaxis.set_ticks_position('none')
+
+  # Add padding between axes and labels
+  ax.xaxis.set_tick_params(pad = 5)
+  ax.yaxis.set_tick_params(pad = 10)
+
+  # Add x, y gridlines
+  ax.grid(b = True, color ='grey',
+	  linestyle ='-.', linewidth = 0.5,
+		alpha = 0.2)
+
+  # Show top values
+  ax.invert_yaxis()
+
+  # Add annotation to bars
+  for i in ax.patches:
+    plt.text(i.get_width()+0.2, i.get_y()+0.5,
+      str(round((i.get_width()), 2)),
+      fontsize = 10, fontweight ='bold',
+      color ='grey')
+
+  fig.savefig(os.path.join(IMG_FOLDER, 'storage.png'))
+
+  user_data = {}
+  x_data = {}
+  y_data = {}
+  for i in range(len(users)):
+    if clusters[i] not in user_data:
+      user_data[clusters[i]], x_data[clusters[i]], y_data[clusters[i]] = [], [], []
+    user_data[clusters[i]].append(users[i])
+    x,y = map(int, locations[i].split(','))
+    x_data[clusters[i]].append(x)
+    y_data[clusters[i]].append(y)
+
+  fig, ax = plt.subplots()
+  ax.set_xlabel('x')
+  ax.set_ylabel('y')
+  for cluster_id in user_data:
+    ax.scatter(x_data[cluster_id], y_data[cluster_id], label=f'Cluster-{cluster_id}')
+    for i in range(len(user_data[cluster_id])):
+      ax.annotate(user_data[cluster_id][i], (x_data[cluster_id][i], y_data[cluster_id][i]))
+
+  ax.legend()
+  fig.savefig(os.path.join(IMG_FOLDER, 'clusters.png'))
+
+  return render_template('visualise.html')
 
 if __name__ == "__main__":
   mr.initialize()
