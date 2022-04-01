@@ -363,36 +363,39 @@ def get_node_for_image():
   username = mr.rds.hget(mr.MKEY2USER, m_key)  # User wanting the image
   image_owner_set = image_hash + mr.IMG2USER_SUFFIX  # Name of set of users containing the image
 
-  targetname = None  # target username from which file should be accessed
+  target_name = None  # target username from which file should be accessed
 
   cluster = mr.rds.hget(mr.USER2CLUS, username)
-  owners = list(mr.rds.smembers(image_owner_set))
+  owners_ips = list(mr.rds.smembers(image_owner_set))
 
+  owners_ips_sorted = []
+  for owner_ip in owners_ips:
+    owner_name = mr.rds.hget(mr.IP2USER, owner_ip)
+    if mr.rds.hget(mr.USER2CLUS, owner_name) == cluster:
+      owners_ips_sorted.append(owner_ip)
 
-  for owner in owners:
-    print(owner)
-    if mr.rds.hget(mr.USER2CLUS, owner) == cluster:
-      node_ip = mr.rds.hget(mr.USER2IP, owner)
-      print(node_ip)
-      try:
-        r = requests.get(url=urllib.parse.urljoin(get_node_url(node_ip), 'ping'))
-        response = r.json()
-        print(response)
-        if not response['success']:
-          pass
-        targetname = owner
-        break
-      except Exception as e:
-        logging.debug(e)
+  for owner_ip in owners_ips:
+    owner_name = mr.rds.hget(mr.IP2USER, owner_ip)
+    if mr.rds.hget(mr.USER2CLUS, owner_name) != cluster:
+      owners_ips_sorted.append(owner_ip)
+
+  # owners_sorted contains users ips from own cluster first
+  for node_ip in owners_ips_sorted:
+    try:
+      r = requests.get(url=urllib.parse.urljoin(get_node_url(node_ip), 'ping'))
+      response = r.json()
+      if not response['success']:
         pass
+      target_name = node_ip
+      break
+    except Exception as e:
+      logging.debug(e)
+      pass
 
-  if targetname is None:
-    return {
-      'success': False, 'err': 'No owner online'
-    }
-  targetname = mr.rds.hget(mr.USER2IP, targetname)
-
-  return {'success': True, 'node_ip': targetname}
+  if target_name is None:
+    return {'success': False, 'err': 'No owner online'}
+  else:
+    return {'success': True, 'node_ip': target_name}
 
 
 @app.route('/record_image_upload', methods=['POST'])
