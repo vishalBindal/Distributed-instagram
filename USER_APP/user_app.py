@@ -5,6 +5,7 @@ import logging
 import os
 import pickle
 import base64
+import random
 
 from Cryptodome.Cipher import AES, PKCS1_OAEP
 from Cryptodome.PublicKey import RSA
@@ -107,11 +108,13 @@ def register():
 
     key2_encrypt, key2_decrypt = generate_key_pair()
 
+    location = f'{random.randint(0, 10)},{random.randint(0, 10)}'  # Generating random coordinates for location
     r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
       'name': username,
       'password': password,
       'key2_encrypt': key2_encrypt,
-      'node_ip': get_ip_address()
+      'node_ip': get_ip_address(),
+      'location': location
     })
     response = json.loads(r.content)
     success: bool = response['success']
@@ -203,7 +206,7 @@ def upload_pic():
 
       # Process File
       r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
-                       params={'node_ip': user.get_user_ip_address()})
+                       params={'name': user.get_username(), 'node_ip': user.get_user_ip_address()})
       response = r.json()
 
       try:

@@ -1,4 +1,3 @@
-from celery import Celery
 from sklearn.cluster import KMeans
 import numpy as np
 from master_app import get_master_rds

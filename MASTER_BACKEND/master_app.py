@@ -147,6 +147,7 @@ def new_user():
     password = data['password']
     key2_encrypt = data['key2_encrypt']
     node_ip = data['node_ip']
+    location = data['location']
   except Exception as e:
     print(f'new_user: {e}')
     return {'success': False, 'err': 'Sent data is post request either incomplete or wrong'}
@@ -161,6 +162,7 @@ def new_user():
   mr.rds.sadd(mr.USERNAMES, name)
   mr.rds.hset(mr.USER2PASS, name, hashed_password)
   mr.rds.hset(mr.USER2KEY2E, name, key2_encrypt)
+  mr.rds.hset(mr.USER2LOC, name, location)
 
   m_key = generate_mkey(name)
 
@@ -308,8 +310,7 @@ def send_request():
 @app.route('/nearby_nodes', methods=['GET'])
 def get_nearby_nodes():
   """returns list[str]: list of usernames where image should be stored"""
-  return {'nearby_nodes': ['10.17.51.108']}
-
+  # return {'nearby_nodes': ['10.17.51.108']}
   if 'name' not in request.args:
     return {'success': False, 'nearby_nodes': [], 'err': 'name not sent'}
 

@@ -218,6 +218,8 @@ class User:
 
     images_b64 = []
     for image_hash in image_hashes:
+
+      # TODO (vishal): Make this fault tolerant
       r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'get_node_for_image'), data={
         'm_key': self.get_m_key(),
         'image_hash': image_hash
