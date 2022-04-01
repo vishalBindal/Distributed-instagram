@@ -437,7 +437,7 @@ def visualise():
   locations = []
   clusters = []
   for user in users:
-    storage.append(mr.rds.hget(mr.USER2_DATASIZE, user))
+    storage.append(mr.get_node_datasize(user))
     locations.append(mr.rds.hget(mr.USER2LOC, user))
     clusters.append(mr.rds.hget(mr.USER2CLUS, user))
 
