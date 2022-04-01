@@ -3,10 +3,11 @@ import pathlib
 from flask import Flask
 
 CUR_DIR = str(pathlib.Path().resolve())
+
 if CUR_DIR.endswith('USER_APP'):
   UPLOAD_FOLDER = './user_data/uploads'
 else:
-  UPLOAD_FOLDER = 'USER_APP/user_data/uploads'
+  UPLOAD_FOLDER = './USER_APP/user_data/uploads'
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 

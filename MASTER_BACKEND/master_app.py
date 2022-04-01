@@ -2,23 +2,36 @@ import logging
 from operator import ne
 import secrets
 import string
+import logging
+from operator import ne
+import secrets
+import string
 
-from flask import Flask, redirect, url_for, render_template, request, flash, json, send_from_directory
+import json
+from typing import List
+
+from flask import Flask, redirect, url_for, render_template, request, flash, send_from_directory
 from datetime import date, datetime
+
 import redis
 from abc import ABC
 
-from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS
+from config import MASTER_IP, NUM_CLUSTERS, NUM_REPLICATIONS, UPLOAD_FOLDER
 import bcrypt
 import time
 import requests
-import urllib
+import urllib.parse
 from utils import get_node_url
 import random
+import threading
 
 app = Flask(__name__, static_url_path='/FRONT_END/src', static_folder='FRONT_END/src', template_folder='FRONT_END')
 app.config['SECRET_KEY'] = 'we are the champions'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+import os
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+IMG_FOLDER = os.path.join(APP_ROOT, 'FRONT_END', 'src')
 
 class MasterRedis(ABC):
   USERNAMES = 'usernames'
@@ -29,6 +42,7 @@ class MasterRedis(ABC):
   USER2IMG_SUFFIX = '_img'
 
   USER2IP = 'username_to_ip'
+  IP2USER = 'ip_to_username'
   USER2LOC = 'username_to_location'
   USER2TS = 'username_to_timestamp'
   IMG2USER_SUFFIX = '_user'
@@ -40,45 +54,39 @@ class MasterRedis(ABC):
   USER2FOLLOWING_SUFFIX = '_following'
   USER2PENDING_SUFFIX = '_pending'
 
+  USER2_DATASIZE = '_node2_datasize'
+
   def __init__(self, master_ip):
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
 
   def initialize(self):
     self.rds.flushall()
 
-    # setup USERNAMES
-    self.rds.sadd(self.USERNAMES, "foo")
-    # Setup USER2PASS
-    self.rds.hset(self.USER2PASS, "foo", "foo")
-    # Setup USER2KEY2E
-    self.rds.hset(self.USER2KEY2E, "foo", "foo")
-    # Setup MKEY2USER
-    self.rds.hset(self.MKEY2USER, "foo", "foo")
-    # Setup USER2MKEY
-    self.rds.hset(self.USER2MKEY, "foo", "foo")
+    # for i in range(NUM_CLUSTERS):
+    #   self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
 
-    #setup USER2CLUS
-    self.rds.hset(self.USER2CLUS, "foo", "foo")
-
-    for i in range(NUM_CLUSTERS):
-      self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
-
-    # Setup USER2IP
-    self.rds.hset(self.USER2IP, "foo", "foo")
-    # Setup USER2LOC
-    self.rds.hset(self.USER2LOC, "foo", "foo")
-    # Setup USER2TS
-    self.rds.hset(self.USER2TS, "foo", "foo")
-
-  def add_image_to_user(self, username, image_hash, time_of_upload):
+  def add_image_to_user(self, username, image_hash, time_of_upload: str):
     # User "username" has uploaded image to her profile
-    sorted_set_name = username + self.USER_IMG_SUFFIX
-    self.rds.zadd(sorted_set_name, {time_of_upload, image_hash})
+    sorted_set_name = username + self.USER2IMG_SUFFIX
+    # self.rds.zadd(sorted_set_name, {str(time_of_upload): image_hash})
+    self.rds.sadd(sorted_set_name, image_hash)
 
   def add_user_to_image(self, username, image_hash):
     # Image is stored at node corresponding to username
     set_name = image_hash + self.IMG2USER_SUFFIX
     self.rds.sadd(set_name, username)
+
+  def inc_node_datasize(self, username: str, datasize: float):
+    old = self.rds.hget(name=self.USER2_DATASIZE, key=username)
+    if old is None:
+      old = 0.0
+    self.rds.hset(name=self.USER2_DATASIZE, key=username, value=float(old) + float(datasize))
+
+  def get_node_datasize(self, username: str) -> float:
+    v = self.rds.hget(name=self.USER2_DATASIZE, key=username)
+    if v is None:
+      v = 0.0
+    return float(v)
 
   def add_follow_request(self, user_follower, user_profile):
     # "user_follower" wants to follow "user_profile"
@@ -116,28 +124,33 @@ def new_user():
     password = data['password']
     key2_encrypt = data['key2_encrypt']
     node_ip = data['node_ip']
+    location = data['location']
   except Exception as e:
     print(f'new_user: {e}')
-    return {'success': False, 'error_msg': 'Sent data is post request either incomplete or wrong'}
+    return {'success': False, 'err': 'Sent data is post request either incomplete or wrong'}
 
   if mr.rds.sismember(mr.USERNAMES, name):
-    return {'success': False, 'error_msg': f'username {name} is already registered'}
+    return {'success': False, 'err': f'username {name} is already registered'}
 
   salt = bcrypt.gensalt()
   hashed_password = bcrypt.hashpw(password.encode(), salt)
   # To check password: if bcrypt.checkpw(passwd, hashed): print("match")
 
-  mr.rds.sadd(mr.USERNAMES, name)
-  mr.rds.hset(mr.USER2PASS, name, hashed_password)
-  mr.rds.hset(mr.USER2KEY2E, name, key2_encrypt)
+  transaction = mr.rds.pipeline()
+
+  transaction.sadd(mr.USERNAMES, name)
+  transaction.hset(mr.USER2PASS, name, hashed_password)
+  transaction.hset(mr.USER2KEY2E, name, key2_encrypt)
+  transaction.hset(mr.USER2LOC, name, location)
 
   m_key = generate_mkey(name)
 
-  mr.rds.hset(mr.MKEY2USER, m_key, name)
-  mr.rds.hset(mr.USER2MKEY, name, m_key)
+  transaction.hset(mr.MKEY2USER, m_key, name)
+  transaction.hset(mr.USER2MKEY, name, m_key)
 
-  mr.rds.hset(mr.USER2IP, name, node_ip)
-
+  transaction.hset(mr.USER2IP, name, node_ip)
+  transaction.hset(mr.IP2USER, node_ip, name)
+  transaction.execute()
   return {'success': True, 'm_key': m_key}
 
 
@@ -172,43 +185,34 @@ def heartbeat():
     timestamp = data['timestamp']
   except Exception as e:
     logging.debug(e)
-    return {'success': False}
-  
+    return {'success': False, 'err': 'data sent is incomplete'}
+
   username = mr.rds.hget(mr.MKEY2USER, mkey)
   if not mr.rds.hexists(mr.USER2TS, username) or int(timestamp) > int(mr.rds.hget(mr.USER2TS, username)):
-    mr.rds.hset(mr.USER2LOC, username, location)
-    mr.rds.hset(mr.USER2TS, username, timestamp)
-  return {
-    'success': True
-  }
+    transaction = mr.rds.pipeline()
+    transaction.hset(mr.USER2LOC, username, location)
+    transaction.hset(mr.USER2TS, username, timestamp)
+    transaction.execute()
+  return {'success': True}
+
 
 @app.route('/followers')
 def followers():
+  if 'name' not in request.args:
+    return {'success': False, 'err': 'data sent is incomplete'}
   name = request.args['name']
   set_name = name + mr.USER2FOLLOWERS_SUFFIX
-  try:
-    followers = mr.rds.smembers(set_name)
-    return {
-      'followers': list(followers)
-    }
-  except:
-    return {
-      'followers': [] 
-    }
+  return {'success': True, 'followers': list(mr.rds.smembers(set_name))}
 
-@app.route('/following')
+
+@app.route('/following', methods=['GET'])
 def following():
+  if 'name' not in request.args:
+    return {'success': False, 'err': 'data sent is incomplete'}
   name = request.args['name']
   set_name = name + mr.USER2FOLLOWING_SUFFIX
-  try:
-    following = mr.rds.smembers(set_name)
-    return {
-      'following': list(following)
-    }
-  except:
-    return {
-      'following': [] 
-    }
+  return {'success': True, 'following': list(mr.rds.smembers(set_name))}
+
 
 @app.route('/pending_requests', methods=['POST'])
 def pending_requests():
@@ -218,18 +222,23 @@ def pending_requests():
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
-  
+
   name = mr.rds.hget(mr.MKEY2USER, m_key)
   set_name = name + mr.USER2PENDING_SUFFIX
+  return {'success': True, 'pending_requests': list(mr.rds.smembers(set_name))}
+
+
+@app.route('/get_username_from_ip', methods=['GET'])
+def get_username_from_ip():
   try:
-    pending_requests = mr.rds.smembers(set_name)
-    return {
-      'pending_requests': list(pending_requests)
-    }
-  except:
-    return {
-      'pending_requests': [] 
-    }
+    node_ip = request.args['node_ip']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': str(e)}
+
+  username = mr.rds.hget(mr.IP2USER, node_ip)
+  return {'success': True, 'username': username}
+
 
 @app.route('/accept_request', methods=['POST'])
 def accept_request():
@@ -241,118 +250,161 @@ def accept_request():
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
-  
+
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.accept_follow_request(username2, username)
 
-  node_ip = mr.rds.hget(mr.USER2IP, username)
-  r = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'get_key2_decrypt'), data={
-        'username': username,
-        'key2_decrypt': key2_decrypt
-      })
+  node_ip = mr.rds.hget(mr.USER2IP, username2)
+  print(f'sending decrypt key to {node_ip}')
+  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(get_node_url(node_ip), 'store_key2_decrypt'),
+                                              data={
+                                                'username': username,
+                                                'key2_decrypt': key2_decrypt
+                                              })
+
   try:
     response = json.loads(r.content)
     if not response['success']:
-      pass
-  except:
-    pass
-  # TODO: make the above fault-tolerant
+      return {'success': False, 'err': str(response['err'])}
+    return {'success': True}
+  except Exception as e:
+    # TODO: make this fault-tolerant
+    logging.debug(str(e))
+    return {'success': False, 'err': str(e)}
 
-  return {
-    'success': True
-  }
 
 @app.route('/send_request', methods=['POST'])
 def send_request():
   data = request.form
   try:
-    m_key = data['m_key'] # to identify the user
-    username2 = data['username2'] # to whom the user wants to follow
+    m_key = data['m_key']  # to identify the user
+    username2 = data['username2']  # to whom the user wants to follow
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': 'data sent is incomplete'}
+
+  username = mr.rds.hget(mr.MKEY2USER, m_key)
+  mr.add_follow_request(username, username2)
+  return {'success': True}
+
+
+@app.route('/nearby_nodes', methods=['GET'])
+def get_nearby_nodes():
+  """returns list[str]: list of usernames where image should be stored"""
+  # return {'nearby_nodes': ['10.17.51.108']}
+  if 'name' not in request.args:
+    return {'success': False, 'nearby_nodes': [], 'err': 'name not sent'}
+
+  username = request.args['name']
+  all_clusters = mr.rds.hgetall(mr.USER2CLUS)
+  clusters_added = set()
+
+  # Picking from user own cluster. This will help reduce the latency for user and its followers assuming they are in
+  # same cluster
+  cluster = mr.rds.hget(mr.USER2CLUS, username)
+  users_in_cluster: List[str] = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
+  nearby_nodes = []
+
+  users_in_cluster.remove(username)
+  users_in_cluster.sort(key=lambda name: mr.get_node_datasize(name))
+
+  # Pick NUM_REPLICATIONS // 2 elements from users_in_cluster
+  nearby_nodes += users_in_cluster[:NUM_REPLICATIONS // 2]
+  clusters_added.add(int(cluster))
+
+  # max_tries will enable to loop to terminate in case there are not enough clusters
+  max_tries = 0
+  while len(nearby_nodes) < NUM_REPLICATIONS:
+    if max_tries > 20:
+      break
+    # Pick a random cluster not already added
+    ind = random.randint(0, NUM_CLUSTERS - 1)
+    if ind not in clusters_added:
+      users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(ind)))
+      nd = min(users_in_cluster_temp, key=lambda name: mr.get_node_datasize(name))
+      nearby_nodes.append(nd)
+      clusters_added.add(ind)
+    max_tries += 1
+
+  return {'success': True, 'nearby_nodes': nearby_nodes}
+
+
+@app.route('/reset_following', methods=['POST'])
+def reset_following():
+  try:
+    m_key = request.form['m_key']
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
-  
-  username = mr.rds.hget(mr.MKEY2USER, m_key)
-  mr.add_follow_request(username, username2)
-  return {
-    'success': True
-  }
+
+  # TODO (bindal): Set following of username = []
+  pass
 
 
-@app.route('/nearby_nodes')
-def get_nearby_nodes():
+@app.route('/get_username_ip', methods=['GET'])
+def get_username_ip():
+  if 'name' not in request.args:
+    return {'success': False, 'err': 'name not sent'}
   username = request.args['name']
-  try:
-    cluster = mr.rds.hget(mr.USER2CLUS, username)
-    users_in_cluster = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
-    nearby_nodes = []
-    clusters_added = set()
-    clusters_added.add(cluster)
-
-    while len(nearby_nodes) < NUM_REPLICATIONS//5:
-      ind = random.rand() % len(users_in_cluster)
-      if users_in_cluster[ind] not in nearby_nodes and users_in_cluster[ind] != username:
-        nearby_nodes.append(users_in_cluster[ind])
-
-    while len(nearby_nodes) < NUM_REPLICATIONS:
-      ind = random.rand() % NUM_CLUSTERS
-      if ind not in clusters_added:
-        users_in_cluster_temp = list(mr.rds.smembers(mr.CLUS2USERS_PREFIX + str(cluster)))
-        ind1 = random.rand() % len(users_in_cluster_temp)
-        nearby_nodes.append(users_in_cluster_temp[ind])
-        clusters_added.add(ind)
-
-    return {
-      'nearby_nodes' : nearby_nodes
-    }
-
-  except Exception as e:
-    return {
-      'nearby_nodes' : []
-    }
-
-  # Return list[str]: list of usernames where image should be stored
+  return {'success': True, 'node_ip': mr.rds.hget(mr.USER2IP, username)}
 
 
-@app.route('/get_images')
+@app.route('/get_images', methods=['GET'])
 def get_images():
+  if 'name' not in request.args:
+    return {'success': False, 'err': 'name not sent'}
   username = request.args['name']
   set_name = username + mr.USER2IMG_SUFFIX
   all_images = mr.rds.smembers(set_name)
-  return {
-    'images': list(all_images)
-  }
+  return {'success': True, 'images': list(all_images)}
+
 
 @app.route('/get_node_for_image', methods=['POST'])
 def get_node_for_image():
-  data = request.form
   try:
-    m_key = data['m_key']
-    image_hash = data['image_hash']
+    m_key = request.form['m_key']
+    image_hash = request.form['image_hash']
   except Exception as e:
     logging.debug(e)
     return {'success': False, 'err': 0}
 
-  username = mr.rds.hget(mr.MKEY2USER, m_key) # User wanting the image
-  image_owner_set = image_hash + mr.IMG2USER_SUFFIX # Name of set of users containing the image
+  username = mr.rds.hget(mr.MKEY2USER, m_key)  # User wanting the image
+  image_owner_set = image_hash + mr.IMG2USER_SUFFIX  # Name of set of users containing the image
 
-  targetname = None # target username from which file should be accessed 
+  target_name = None  # target username from which file should be accessed
 
   cluster = mr.rds.hget(mr.USER2CLUS, username)
-  owners = list(mr.rds.smembers(image_owner_set))
+  owners_ips = list(mr.rds.smembers(image_owner_set))
 
-  for owner in owners:
-    if(mr.rds.hget(mr.USER2CLUS, owner) == cluster):
-      targetname = owner
+  owners_ips_sorted = []
+  for owner_ip in owners_ips:
+    owner_name = mr.rds.hget(mr.IP2USER, owner_ip)
+    if mr.rds.hget(mr.USER2CLUS, owner_name) == cluster:
+      owners_ips_sorted.append(owner_ip)
+
+  for owner_ip in owners_ips:
+    owner_name = mr.rds.hget(mr.IP2USER, owner_ip)
+    if mr.rds.hget(mr.USER2CLUS, owner_name) != cluster:
+      owners_ips_sorted.append(owner_ip)
+
+  # owners_sorted contains users ips from own cluster first
+  for node_ip in owners_ips_sorted:
+    try:
+      r = requests.get(url=urllib.parse.urljoin(get_node_url(node_ip), 'ping'))
+      response = r.json()
+      if not response['success']:
+        pass
+      target_name = node_ip
       break
+    except Exception as e:
+      logging.debug(e)
+      pass
 
-  if(targetname == None):
-    targetname = owners[0]
+  if target_name is None:
+    return {'success': False, 'err': 'No owner online'}
+  else:
+    return {'success': True, 'node_ip': target_name}
 
-  return {
-    'success': True,
-    'name': targetname
-  }
 
 @app.route('/record_image_upload', methods=['POST'])
 def record_image_upload():
@@ -360,20 +412,99 @@ def record_image_upload():
   try:
     m_key = data['m_key']
     image_hash = data['image_hash']
-    target_user = data['target_user']
+    target_user_ip = data['target_user']
     timestamp = data['timestamp']
+    image_size = data['image_size']
   except Exception as e:
     logging.debug(e)
-    return {'success': False, 'err': 0}
+    return {'success': False, 'err': 'data sent is incomplete'}
 
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.add_image_to_user(username, image_hash, timestamp)
-  mr.add_user_to_image(target_user, image_hash)
+  mr.add_user_to_image(target_user_ip, image_hash)
+  target_username = mr.rds.hget(mr.IP2USER, target_user_ip)
+  mr.inc_node_datasize(target_username, float(image_size))
+  return {'success': True}
 
 
+@app.route('/all_users')
+def all_users():
+  users = mr.rds.smembers(mr.USERNAMES)
+  return {'success': True, 'users': list(users)}
+
+
+import matplotlib.pyplot as plt
+
+@app.route('/')
+def visualise():
+  users = list(mr.rds.smembers(mr.USERNAMES))
+  storage = []
+  locations = []
+  clusters = []
+  for user in users:
+    storage.append(mr.get_node_datasize(user))
+    locations.append(mr.rds.hget(mr.USER2LOC, user))
+    clusters.append(mr.rds.hget(mr.USER2CLUS, user))
+
+  fig, ax = plt.subplots()
+
+  # Horizontal Bar Plot
+  ax.barh(users, storage)
+
+  # Remove axes splines
+  for s in ['top', 'bottom', 'left', 'right']:
+    ax.spines[s].set_visible(False)
+
+  # Remove x, y Ticks
+  ax.xaxis.set_ticks_position('none')
+  ax.yaxis.set_ticks_position('none')
+
+  # Add padding between axes and labels
+  ax.xaxis.set_tick_params(pad = 5)
+  ax.yaxis.set_tick_params(pad = 10)
+
+  # Add x, y gridlines
+  ax.grid(b = True, color ='grey',
+	  linestyle ='-.', linewidth = 0.5,
+		alpha = 0.2)
+
+  # Show top values
+  ax.invert_yaxis()
+
+  # Add annotation to bars
+  for i in ax.patches:
+    plt.text(i.get_width()+0.2, i.get_y()+0.5,
+      str(round((i.get_width()), 2)),
+      fontsize = 10, fontweight ='bold',
+      color ='grey')
+
+  fig.savefig(os.path.join(UPLOAD_FOLDER, 'storage.png'))
+
+  user_data = {}
+  x_data = {}
+  y_data = {}
+  for i in range(len(users)):
+    if clusters[i] not in user_data:
+      user_data[clusters[i]], x_data[clusters[i]], y_data[clusters[i]] = [], [], []
+    user_data[clusters[i]].append(users[i])
+    x,y = map(int, locations[i].split(','))
+    x_data[clusters[i]].append(x)
+    y_data[clusters[i]].append(y)
+
+  fig, ax = plt.subplots()
+  ax.set_xlabel('x')
+  ax.set_ylabel('y')
+  for cluster_id in user_data:
+    ax.scatter(x_data[cluster_id], y_data[cluster_id], label=f'Cluster-{cluster_id}')
+    for i in range(len(user_data[cluster_id])):
+      ax.annotate(user_data[cluster_id][i], (x_data[cluster_id][i], y_data[cluster_id][i]))
+
+  ax.legend()
+  fig.savefig(os.path.join(UPLOAD_FOLDER, 'clusters.png'))
+
+  return render_template('visualise.html')
 
 if __name__ == "__main__":
-  mr.initialize()
-  
+  # mr.initialize()
   logging.basicConfig(level=logging.DEBUG)
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)

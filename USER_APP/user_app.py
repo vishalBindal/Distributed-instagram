@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import pickle
+import base64
+import random
 
 from Cryptodome.Cipher import AES, PKCS1_OAEP
 from Cryptodome.PublicKey import RSA
@@ -13,7 +15,7 @@ from datetime import datetime
 import requests
 from werkzeug.utils import secure_filename
 
-from USER_APP.user import User, log_user_in, UserMismatch, create_new_user
+from user import User, log_user_in, UserMismatch, create_new_user
 from utils import get_ip_address, generate_key_pair, allowed_file
 from config import MASTER_URL, app
 from pathlib import Path
@@ -25,14 +27,9 @@ import urllib.parse
 
 @app.route('/err', methods=['GET'])
 def err():
-  return render_template('error.html', error='toto')
-
-
-@app.route("/login")
-def login(name=''):
   user = User()
   user.load()
-  return render_template('login.html', user=user, name=name)
+  return render_template('error.html', error='toto', user=user)
 
 
 @app.route('/follow_accepted', methods=['POST'])
@@ -48,76 +45,106 @@ def follow_accepted():
     return {'success': True}
 
 
-@app.route("/login", methods=['POST'])
-def login_post():
-  name = request.form.get('name')
-  password = request.form.get('password')
+@app.route("/login", methods=['GET', 'POST'])
+def login(name=''):
+  if request.method == 'GET':
+    user = User()
+    user.load()
+    return render_template('login.html', user=user, name=name)
+  else:
+    if 'name' not in request.form or 'password' not in request.form:
+      render_template('error.html', error='username or password is not sent to server', user=User())
 
-  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'login_user'), data={
-    'name': name,
-    'password': password
-  })
-  response = json.loads(r.content)
+    name = request.form.get('name')
+    password = request.form.get('password')
 
-  if not response['success']:
-    flash(response['err'])
-    return redirect(url_for('login', name=name))
+    r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'login_user'), data={
+      'name': name,
+      'password': password
+    })
+    response = json.loads(r.content)
 
-  m_key, key2_encrypt = response['m_key'], response['key2_encrypt']
+    if not response['success']:
+      flash(response['err'])
+      return redirect(url_for('login', name=name))
 
-  try:
-    log_user_in(username=name, key2_encrypt=key2_encrypt, m_key=m_key)
-  except UserMismatch:
-    flash('The user object in local storage is not the same as the one used to log in. Please either remove the local '
-          'storage or double-check that the data transferred from the previous device is accurate.')
-    return render_template('login.html', user=User())
+    m_key, key2_encrypt = response['m_key'], response['key2_encrypt']
 
-  return redirect(url_for('profile'))
+    try:
+      log_user_in(username=name, key2_encrypt=key2_encrypt, m_key=m_key)
+    except UserMismatch:
+      flash(
+        'The user object in local storage is not the same as the one used to log in. Please either remove the local '
+        'storage or double-check that the data transferred from the previous device is accurate.')
+      return render_template('login.html', user=User())
+
+    return redirect(url_for('profile'))
 
 
-@app.route("/register")
-def register(username=''):
+@app.route('/logout', methods=['POST'])
+def logout():
   user = User()
   user.load()
-  return render_template('register.html', user=user)
-
-
-@app.route("/register", methods=['POST'])
-def register_post():
-  username = request.form.get('username')
-  password = request.form.get('password')
-
-  key2_encrypt, key2_decrypt = generate_key_pair()
-
-  r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
-    'name': username,
-    'password': password,
-    'key2_encrypt': key2_encrypt,
-    'node_ip': get_ip_address()
-  })
-
-  response = json.loads(r.content)
-  success: bool = response['success']
-  if not success:
-    error_msg: str = response['error_msg']
-    flash(f'Error: {error_msg} Unsuccessful. Try again')
-    return render_template('register.html', user=User())
+  do_delete = request.form.get('do_delete', 'off')
+  if do_delete == 'on':
+    user.delete_rds()
   else:
-    try:
-      m_key: str = response['m_key']
-      create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
-      # User saved the user to local storage
-      return redirect(url_for('profile'))
-    except Exception as e:
-      flash(str(e))
+    user.log_out()
+  return redirect('/')
+
+
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+  if request.method == 'GET':
+    user = User()
+    user.load()
+    return render_template('register.html', user=user)
+  else:
+    if 'username' not in request.form or 'password' not in request.form:
+      render_template('error.html', error='username or password is not sent to server', user=User())
+
+    username = request.form.get('username')
+    password = request.form.get('password')
+
+    key2_encrypt, key2_decrypt = generate_key_pair()
+
+    location = f'{random.randint(0, 100)},{random.randint(0, 100)}'  # Generating random coordinates for location
+    r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
+      'name': username,
+      'password': password,
+      'key2_encrypt': key2_encrypt,
+      'node_ip': get_ip_address(),
+      'location': location
+    })
+    response = json.loads(r.content)
+    success: bool = response['success']
+    if not success:
+      error_msg = response['err']
+      flash(f'Error: {error_msg} Unsuccessful. Try again')
       return render_template('register.html', user=User())
+    else:
+      try:
+        m_key = response['m_key']
+        create_new_user(username=username, m_key=m_key, key2_encrypt=key2_encrypt, key2_decrypt=key2_decrypt)
+        # User saved the user to local storage
+        return redirect(url_for('profile'))
+      except Exception as e:
+        flash(str(e))
+        return render_template('register.html', user=User())
 
 
 @app.route("/profile/<username>")
-def profile2(username):
-  user = User(username=username)
-  return render_template('other_profile.html', user=user, followers=user.get_followers(),
-                         following=user.get_following())
+def other_profile(username):
+  user = User()
+  user.load()
+  a = user.get_images_for(username)
+  err_msg = a[1]
+  if err_msg != '':
+    render_template('error.html', error=err_msg, user=user)
+  images_b64 = a[0]
+  user2 = User(username=username)
+  return render_template('profile.html', pronoun=username, user=user2, followers=user2.get_followers(),
+                         following=user2.get_following(), images_blob_data=images_b64)
 
 
 @app.route("/profile")
@@ -128,17 +155,24 @@ def profile():
     flash('You are not logged in. Log in to view profile')
     return render_template('login.html', user=user)
   else:
-    return render_template('profile.html', user=user, followers=user.get_followers(), following=user.get_following())
 
+    # import glob
+    # images_b64 = []
+    # for img_path in glob.glob(f"{app.config['UPLOAD_FOLDER']}*.jpg"):
+    #   # path = '/Users/vishal/Downloads/iitd_things/8th_Sem/col726_numerical_algo/assignment_4/Distributed-instagram/USER_APP/FRONT_END/src/images/IITDlogo.png'
+    #   with open(img_path, "rb") as image_file:
+    #     data = base64.b64encode(image_file.read()).decode("utf-8")
+    #   images_b64.append(data)
 
-@app.route("/")
-def index():
-  user = User()
-  user.load()
-  return render_template('front_page.html', user=user)
+    a = user.get_my_images_for()
+    err_msg = a[1]
+    if err_msg != '':
+      render_template('error.html', error=err_msg, user=user)
 
-
-# TODO: define more functions as given in doc
+    images_b64 = a[0]
+    return render_template('profile.html', pronoun='You', user=user, followers=user.get_followers(),
+                           following=user.get_following(), pending=user.get_pending_requests(),
+                           images_blob_data=images_b64)
 
 
 @app.route('/upload_pic', methods=['POST'])
@@ -167,22 +201,23 @@ def upload_pic():
       dir_path = app.config['UPLOAD_FOLDER']
       Path(dir_path).mkdir(parents=True, exist_ok=True)
 
-      file.save(os.path.join(dir_path, filename))
+      file_path = os.path.join(dir_path, filename)
+      file.save(file_path)
 
       # Process File
-      # TODO: Do this asyncly on celery
-      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
-                        data={'node_ip': user.get_user_ip_address()})
-      response = r.text
+      r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'nearby_nodes'),
+                       params={'name': user.get_username(), 'node_ip': user.get_user_ip_address()})
+      response = r.json()
 
-      # TODO: check if file is actually bytes o.w load from filepath
       try:
-        nd_ids = dict(response)
+        nearby_users = response['nearby_nodes']
 
+        # ------------ Encryption ------------
         # https://stackoverflow.com/questions/28426102/python-crypto-rsa-public-private-key-with-large-file
         aes_key = get_random_bytes(16)
         cipher = AES.new(aes_key, AES.MODE_EAX)
-        data = open(file.filename, 'rb').read()
+        with open(file_path, "rb") as image_file:
+          data = base64.b64encode(image_file.read())  # .decode("utf-8")
         ciphertext, tag = cipher.encrypt_and_digest(data)
 
         # Now aes_key using encrypt key
@@ -191,28 +226,56 @@ def upload_pic():
 
         encoded_info_dict = {'nonce': cipher.nonce, 'ciphertext': ciphertext, 'tag': tag,
                              'encrypted_aes_key': encrypted_aes_key}
-        encoded_info = pickle.dumps(encoded_info_dict)
+
+        bytes_obj = pickle.dumps(encoded_info_dict)
+        encoded_info = base64.b64encode(bytes_obj).decode('utf-8')
 
         # Decrypt example: https://pycryptodome.readthedocs.io/en/latest/src/examples.html
         # Decrypt aes_key using rsa and then decrypt image using that aes_key
 
-        for nd_id in nd_ids:
+        file_size = os.path.getsize(file_path)
+        os.remove(file_path)
+
+        for nearby_user in nearby_users:
+          r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_username_ip'), params={'name': nearby_user})
+          nd_id = r.json()['node_ip']
+
           nd_url = f'http://{nd_id}:8000'
           r = requests.post(url=urllib.parse.urljoin(nd_url, 'add_image_data'), data={
+            'unique_hash': file_path,
             'encoded_info': encoded_info
           })
           response = json.loads(r.content)
 
           if not response['success']:
-            logging.debug(f'failed writing on node {nd_url}')
+            err_msg = response['err']
+            logging.debug(f'failed writing on node {nd_url}. error: {err_msg}')
+            return render_template('error.html', error=err_msg, user=user)
+
+          curr_dt = datetime.now()
+          timestamp = int(round(curr_dt.timestamp()))
+          r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'record_image_upload'), data={
+            'm_key': user.get_m_key(),
+            'image_hash': file_path,
+            'target_user': nd_id,
+            'timestamp': timestamp,
+            'image_size': file_size
+          })
+
+          if not response['success']:
+            err_msg = response['err']
+            logging.debug(f'failed writing on node {nd_url}. error: {err_msg}')
+            return render_template('error.html', error=err_msg, user=user)
+
       except Exception as e:
-        print(e)
-        return e
+        err_msg = str(e)
+        logging.debug(f'error: {err_msg}')
+        return render_template('error.html', error=err_msg, user=user)
 
-      return redirect(url_for('download_file', name=filename))
+      return redirect(url_for('profile'))
 
 
-@app.route('/add_image_data')
+@app.route('/add_image_data', methods=['POST'])
 def add_image_data():
   data = request.form
   try:
@@ -220,24 +283,114 @@ def add_image_data():
     encoded_info = data['encoded_info']
   except Exception as e:
     logging.debug(e)
-    return {'success': False}
+    return {'success': False, 'err': e}
   user = User()
   user.load()
-  if not user.is_logged_in():
-    return {'success': False, 'err': 'user is not logged in on this node'}
+  # if not user.is_logged_in():
+  #   return {'success': False, 'err': 'user is not logged in on this node'}
+  # else:
+  user.add_image_data(unique_hash=unique_hash, encoded_info=encoded_info)
+  return {'success': True}
+
+
+@app.route('/get_encrypted_image', methods=['GET'])
+def get_encrypted_image():
+  try:
+    image_hash = request.args['image_hash']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': e}
+
+  user = User()
+  user.load()
+  if user.rds.hexists(user.IMAGE_DATA, key=image_hash):
+    return {'success': True, 'encoded_info': user.rds.hget(user.IMAGE_DATA, key=image_hash)}
   else:
-    user.add_image_data(unique_hash=unique_hash, encoded_info=encoded_info)
-    return {'success': True}
+    return {'success': False, 'err': 'this image hash not in redis'}
 
 
 @app.route('/uploads/<name>')
-def download_file(name):
+def view_file(name):
   return send_from_directory(app.config["UPLOAD_FOLDER"], name)
 
+
+@app.route("/")
+def index():
+  user = User()
+  user.load()
+  return render_template('front_page.html', user=user)
+
+
+@app.route('/all_users')
+def all_users():
+  r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'all_users'))
+  response = r.json()
+  all_users = response['users']
+  user = User()
+  user.load()
+  following = user.get_following()
+  following_set = set(following)
+  not_following = []
+  for username in all_users:
+    if username not in following_set and username != user.get_username():
+      not_following.append(username)
+
+  return render_template('explore.html', following=following, not_following=not_following, user=user)
+
+
+@app.route('/follow/<username>')
+def follow_new_user(username):
+  user = User()
+  user.load()
+  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'send_request'), data={
+    'm_key': user.get_m_key(),
+    'username2': username
+  })
+  response = json.loads(r.content)
+  if not response['success']:
+    flash(response['err'])
+    return redirect(url_for('all_users'))
+  return redirect(url_for('profile'))
+
+
+@app.route('/store_key2_decrypt', methods=['POST'])
+def store_key2_decrypt():
+  data = request.form
+  try:
+    username = data['username']
+    key2_decrypt = data['key2_decrypt']
+  except Exception as e:
+    logging.debug(e)
+    return {'success': False, 'err': e}
+
+  user = User()
+  user.load()
+  user.store_key_2decrypt(username, key2_decrypt)
+  return {'success': True}
+
+
+@app.route('/accept_request/<username>')
+def accept_user(username):
+  user = User()
+  user.load()
+  r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'accept_request'), data={
+    'm_key': user.get_m_key(),
+    'username2': username,
+    'key2_decrypt': user.get_key2_decrypt()
+  })
+  response = json.loads(r.content)
+  if not response['success']:
+    flash(response['err'])
+    return redirect(url_for('profile'))
+  return redirect(url_for('profile'))
+
+@app.route('/ping')
+def ping():
+  return {'success': True}
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
   app.add_url_rule(
-    "/user_data/<name>", endpoint="download_file", build_only=True
+    "/user_data/<name>", endpoint="view_file", build_only=True
   )
   app.run(host='0.0.0.0', debug=True, port=8000, threaded=True)

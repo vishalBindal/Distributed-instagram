@@ -1,13 +1,12 @@
-from celery import Celery
 from sklearn.cluster import KMeans
 import numpy as np
 from master_app import get_master_rds
 from config import NUM_CLUSTERS, KMEANS_INTERVAL
 import time
 
-app = Celery('tasks', backend='redis://localhost', broker='pyamqp://guest@localhost:5672//')
+#app = Celery('tasks', backend='redis://localhost', broker='pyamqp://guest@localhost:5672//')
 
-@app.task
+#@app.task
 def run_kmeans():
     while True:
         mr = get_master_rds()
@@ -18,12 +17,19 @@ def run_kmeans():
 
         user_to_loc = mr.rds.hgetall(mr.USER2LOC)
 
+        #print(user_to_loc)
+
         for username in user_to_loc:
             location = user_to_loc[username]
+            if location == "foo":
+                continue
+            location = tuple(map(int, location.split(',')))
             loc_to_id[location] = ids
             user_to_id[username] = ids
             locs.append(location)
             ids += 1
+
+        #print(locs)
 
         locs = np.array(locs)
         kmeans = KMeans(n_clusters=NUM_CLUSTERS, random_state=0).fit(locs)
@@ -37,16 +43,21 @@ def run_kmeans():
         user_clusters = kmeans.predict(to_predict)
         clus_to_users = {}
 
+        transaction = mr.rds.pipeline()
         for i in range(len(usernames)):
-            mr.rds.hset(mr.USER2LOC, usernames[i], user_clusters[i])
-            clus_to_users[user_clusters[i]].append(usernames[i])
+            int_val = int(user_clusters[i])
+            transaction.hset(mr.USER2CLUS, usernames[i], int_val)
+            if int_val not in clus_to_users:
+                clus_to_users[int_val] = []
+            clus_to_users[int_val].append(usernames[i])
 
         for i in range(NUM_CLUSTERS):
-            while mr.rds.scard(mr.CLUS2USERS_PREFIX + str(i)) > 0:
-                mr.rds.spop(mr.CLUS2USERS_PREFIX + str(i))
-            
-            for value in clus_to_users[i].values():
-                mr.rds.add(mr.CLUS2USERS_PREFIX + str(i), value)
+            transaction.delete(mr.CLUS2USERS_PREFIX + str(i))
+            for value in clus_to_users[i]:
+                transaction.sadd(mr.CLUS2USERS_PREFIX + str(i), value)
+
+        transaction.execute()
+        print(mr.rds.hgetall(mr.USER2CLUS))
 
         time.sleep(KMEANS_INTERVAL)
 

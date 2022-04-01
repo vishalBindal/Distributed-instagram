@@ -1,6 +1,7 @@
+import threading
 from tasks import run_kmeans
-from celery import group
+from config import KMEANS_INTERVAL
 
-res = group(run_kmeans.s()).apply_async()
-res.get()
-
+t = threading.Thread(target=run_kmeans)
+t.start()
+t.join()

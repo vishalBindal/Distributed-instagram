@@ -1,12 +1,19 @@
+import base64
+import pickle
+from datetime import datetime
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 import redis
 import requests
 import urllib.parse
 
-from USER_APP.config import MASTER_URL
+from Cryptodome.Cipher import PKCS1_OAEP, AES
+from Cryptodome.PublicKey import RSA
+
+from config import MASTER_URL
+from utils import get_ip_address
 
 
 class UserMismatch(Exception):
@@ -22,29 +29,31 @@ class User:
   def __init__(self, username: str = '', m_key: str = '', key2_encrypt: str = '', key2_decrypt: str = ''):
     self.loaded = False
     self.rds = redis.Redis(decode_responses=True, socket_timeout=5)
-    self.user_data: Dict[str, Any] = {'username': username, 'm_key': m_key, 'key2_encrypt': key2_encrypt,
+    self.rds_no_decode = redis.Redis(decode_responses=False, socket_timeout=5)
+    self.user_data: Dict[str, Any] = {'logged_in': 0, 'username': username, 'm_key': m_key,
+                                      'key2_encrypt': key2_encrypt,
                                       'key2_decrypt': key2_decrypt, 'creation_time': self.get_current_time_str()}
     self.key2_decrypt_following: Dict[str, str] = dict()
 
   def get_username(self):
-    self.load()
     return self.user_data['username']
 
   def get_m_key(self):
-    self.load()
     return self.user_data['m_key']
 
   def get_key2_encrypt(self):
-    self.load()
     return self.user_data['key2_encrypt']
 
   def get_key2_decrypt(self):
-    self.load()
     return self.user_data['key2_decrypt']
 
   def get_creation_time(self) -> str:
-    self.load()
     return self.user_data['creation_time']
+
+  def store_key_2decrypt(self, username2: str, key2_decrypt: str):
+    self.key2_decrypt_following[username2] = key2_decrypt
+    self.rds.hset(self.DECRYPT_FOLLOWING_KEY, key=username2, value=key2_decrypt)
+    self.save()
 
   def add_following(self, username2: str, following_decrypt_key: str):
     """This function will be called after someone accepts your follow request. That person who accept will send decrypt
@@ -53,7 +62,7 @@ class User:
     self.rds.hset(name=self.DECRYPT_FOLLOWING_KEY, key=username2, value=following_decrypt_key)
 
   def is_logged_in(self) -> bool:
-    return not self.get_username() == ''
+    return int(self.user_data['logged_in']) > 0
 
   @staticmethod
   def get_user_ip_address():
@@ -67,10 +76,10 @@ class User:
 
   def get_pending_requests(self):
     r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'pending_requests'),
-                                                data={'mkey': self.get_m_key()})
+                                                data={'m_key': self.get_m_key()})
 
     data = json.loads(r.content)
-    pending_requests: List[str] = data['following']
+    pending_requests: List[str] = data['pending_requests']
     return pending_requests
 
   def accept_request(self, username2: str) -> bool:
@@ -108,13 +117,15 @@ class User:
 
   def save(self):
     self.loaded = True
-    self.rds.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
-    for key in self.user_data:
-      if self.user_data[key] == '':
-        raise Exception('Can\'t save. The local object is not populated fully.')
-    self.rds.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
+    transaction = self.rds.pipeline()
+    transaction.delete(self.USER_DATA_KEY, self.DECRYPT_FOLLOWING_KEY)
+    # for key in self.user_data:
+    #   if self.user_data[key] == '':
+    #     raise Exception('Can\'t save. The local object is not populated fully.')
+    transaction.hmset(name=self.USER_DATA_KEY, mapping=self.user_data)
     if len(self.key2_decrypt_following) > 0:
-      self.rds.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
+      transaction.hmset(name=self.DECRYPT_FOLLOWING_KEY, mapping=self.key2_decrypt_following)
+    transaction.execute()
 
   @staticmethod
   def get_current_time_str() -> str:
@@ -123,16 +134,34 @@ class User:
     dt_string = dt.strftime("%d/%m/%Y %H:%M:%S")
     return dt_string
 
+  def log_out(self):
+    self.load()
+    self.user_data['logged_in'] = 0
+    self.save()
+
+  def delete_rds(self):
+    self.rds.delete(self.USER_DATA_KEY)
+
   def try_recovery(self):
     # TODO: Do this recovery in celery so as to make it fault tolerant
-    # If master is down user keeps trying thorugh celery task
+    # If master is down user keeps trying through celery task
 
     # ------ put this inside celery task and starts async ------
     r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'reset_following'), data={'m_key': self.user_data['m_key']})
     # Following will be empty since I don't have any ones key2_decrypt. So, you will need to follow everyone again
-    # TODO: Send request to recover key2_decrypt from followers asynchronously
-    # Keep trying to recover for some time (Say 5 minutes for the purpose of this assignment)
-    # But is it safe to ask for decrypt key ?
+
+    # TODO (bindal): Complete this request
+    r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'get_decrypt_key_from_follower'),
+                      data={'m_key': self.user_data['m_key']})
+    res = json.loads(r.content)
+
+    if not res['success']:
+      logging.debug('try again')
+      # TODO: Send request to recover key2_decrypt from followers asynchronously
+      # Keep trying to recover for some time (Say 5 minutes for the purpose of this assignment)
+      # But is it safe to ask for decrypt key ?
+
+    self.user_data['key2_decrypt'] = res['key2_decrypt']
     self.save()
 
   def is_consistent_with_rds(self):
@@ -144,7 +173,88 @@ class User:
 
   def add_image_data(self, unique_hash: str, encoded_info: str):
     self.rds.hset(name=self.IMAGE_DATA, key=unique_hash, value=encoded_info)
-    pass
+
+  def get_my_images_for(self) -> Tuple[List[str], str]:
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_images'), params={'name': self.get_username()})
+    image_hashes = r.json()['images']
+
+    images_b64 = []
+    for image_hash in image_hashes:
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'get_node_for_image'), data={
+        'm_key': self.get_m_key(),
+        'image_hash': image_hash
+      })
+      response = json.loads(r.content)
+      if not response['success']:
+        logging.error(response['err'])
+        return [], response['err']
+      node_ip = response['node_ip']
+
+      if self.get_key2_decrypt() == '':
+        err_msg = 'you don\'t have your own decrypt key'
+        logging.debug(err_msg)
+        return [], err_msg
+
+      node_url = f'http://{node_ip}:8000'
+      r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
+        'image_hash': image_hash
+      }, headers={'Content-Type': 'application/octet-stream'})
+
+      encoded_info = base64.b64decode(r.json()['encoded_info'])
+
+      encoded_info_dict = pickle.loads(encoded_info)
+
+      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.get_key2_decrypt()))
+      aes_key = cipher_rsa.decrypt(encoded_info_dict['encrypted_aes_key'])
+
+      nonce, tag, ciphertext = encoded_info_dict['nonce'], encoded_info_dict['tag'], encoded_info_dict['ciphertext']
+      cipher = AES.new(aes_key, AES.MODE_EAX, nonce)
+      data = cipher.decrypt_and_verify(ciphertext, tag)
+      images_b64.append(data.decode('utf-8'))
+    return images_b64, ''
+
+  def get_images_for(self, following: str) -> Tuple[List[str], str]:
+    r = requests.get(url=urllib.parse.urljoin(MASTER_URL, 'get_images'), params={'name': following})
+    image_hashes = r.json()['images']
+
+    images_b64 = []
+    for image_hash in image_hashes:
+
+      # TODO (vishal): Make this fault tolerant
+      r = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'get_node_for_image'), data={
+        'm_key': self.get_m_key(),
+        'image_hash': image_hash
+      })
+      response = json.loads(r.content)
+      if not response['success']:
+        logging.error(response['err'])
+        return [], response['err']
+      node_ip = response['node_ip']
+
+
+      if following not in self.key2_decrypt_following:
+        err_msg = 'you are not following this user'
+        logging.debug(err_msg)
+        return [], err_msg
+
+      # u_name = response['username']
+      node_url = f'http://{node_ip}:8000'
+      r = requests.get(url=urllib.parse.urljoin(node_url, 'get_encrypted_image'), params={
+        'image_hash': image_hash
+      }, headers={'Content-Type': 'application/octet-stream'})
+
+      encoded_info = base64.b64decode(r.json()['encoded_info'])
+
+      encoded_info_dict = pickle.loads(encoded_info)
+
+      cipher_rsa = PKCS1_OAEP.new(RSA.import_key(self.key2_decrypt_following[following].encode()))
+      aes_key = cipher_rsa.decrypt(encoded_info_dict['encrypted_aes_key'])
+
+      nonce, tag, ciphertext = encoded_info_dict['nonce'], encoded_info_dict['tag'], encoded_info_dict['ciphertext']
+      cipher = AES.new(aes_key, AES.MODE_EAX, nonce)
+      data = cipher.decrypt_and_verify(ciphertext, tag)
+      images_b64.append(data.decode('utf-8'))
+    return images_b64, ''
 
 
 def log_user_in(username: str, m_key: str, key2_encrypt: str):
@@ -160,11 +270,15 @@ def log_user_in(username: str, m_key: str, key2_encrypt: str):
   if c > 0:
     if c != len(user.required_keys) - params_len:
       raise UserMismatch
+
+  user.user_data['logged_in'] = 1
+  user.save()
   return user
 
 
 def create_new_user(username: str, m_key: str, key2_encrypt: str, key2_decrypt: str):
   user = User(username, m_key, key2_encrypt, key2_decrypt)
+  user.user_data['logged_in'] = 1
   user.save()
 
 
