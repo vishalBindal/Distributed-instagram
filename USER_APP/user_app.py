@@ -108,7 +108,7 @@ def register():
 
     key2_encrypt, key2_decrypt = generate_key_pair()
 
-    location = f'{random.randint(0, 10)},{random.randint(0, 10)}'  # Generating random coordinates for location
+    location = f'{random.randint(0, 100)},{random.randint(0, 100)}'  # Generating random coordinates for location
     r: requests.models.Response = requests.post(url=urllib.parse.urljoin(MASTER_URL, 'new_user'), data={
       'name': username,
       'password': password,
