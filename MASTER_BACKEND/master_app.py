@@ -404,7 +404,7 @@ def record_image_upload():
   try:
     m_key = data['m_key']
     image_hash = data['image_hash']
-    target_user = data['target_user']
+    target_user_ip = data['target_user']
     timestamp = data['timestamp']
     image_size = data['image_size']
   except Exception as e:
@@ -413,8 +413,9 @@ def record_image_upload():
 
   username = mr.rds.hget(mr.MKEY2USER, m_key)
   mr.add_image_to_user(username, image_hash, timestamp)
-  mr.add_user_to_image(target_user, image_hash)
-  mr.inc_node_datasize(target_user, float(image_size))
+  mr.add_user_to_image(target_user_ip, image_hash)
+  target_username = mr.rds.hget(mr.IP2USER, target_user_ip)
+  mr.inc_node_datasize(target_username, float(image_size))
   return {'success': True}
 
 
