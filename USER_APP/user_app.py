@@ -381,6 +381,11 @@ def accept_user(username):
     return redirect(url_for('profile'))
   return redirect(url_for('profile'))
 
+@app.route('/ping')
+def ping():
+  return {
+    'success': True
+  }
 
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
