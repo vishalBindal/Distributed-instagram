@@ -58,35 +58,8 @@ class MasterRedis(ABC):
   def initialize(self):
     self.rds.flushall()
 
-    # setup USERNAMES
-    # self.rds.sadd(self.USERNAMES, "foo")
-    self.rds.sadd(self.USERNAMES, "user1")
-    self.rds.sadd(self.USERNAMES, "user2")
-    self.rds.sadd(self.USERNAMES, "user3")
-    # Setup USER2PASS
-    self.rds.hset(self.USER2PASS, "foo", "foo")
-    # Setup USER2KEY2E
-    self.rds.hset(self.USER2KEY2E, "foo", "foo")
-    # Setup MKEY2USER
-    self.rds.hset(self.MKEY2USER, "foo", "foo")
-    # Setup USER2MKEY
-    self.rds.hset(self.USER2MKEY, "foo", "foo")
-
-    # setup USER2CLUS
-    self.rds.hset(self.USER2CLUS, "foo", "foo")
-
-    for i in range(NUM_CLUSTERS):
-      self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
-
-    # Setup USER2IP
-    self.rds.hset(self.USER2IP, "foo", "foo")
-    # Setup USER2LOC
-    self.rds.hset(self.USER2LOC, "foo", "foo")
-    self.rds.hset(self.USER2LOC, "user1", "1,1")
-    self.rds.hset(self.USER2LOC, "user2", "1,2")
-    self.rds.hset(self.USER2LOC, "user3", "100,100")
-    # Setup USER2TS
-    self.rds.hset(self.USER2TS, "foo", "foo")
+    # for i in range(NUM_CLUSTERS):
+    #   self.rds.sadd(self.CLUS2USERS_PREFIX + str(i), "foo")
 
   def add_image_to_user(self, username, image_hash, time_of_upload: str):
     # User "username" has uploaded image to her profile
