@@ -397,12 +397,21 @@ def get_node_for_image():
 
   for owner in owners:
     if mr.rds.hget(mr.USER2CLUS, owner) == cluster:
-      targetname = owner
-      break
+      node_ip = mr.rds.hget(mr.USER2IP, owner)
+      try:
+        r = requests.get(url=urllib.parse.urljoin(get_node_url(node_ip), 'ping'))
+        response = r.json()
+        if response['success']:
+          targetname = owner
+          break
+      except:
+        pass
 
-  targetname = mr.rds.hget(mr.USER2IP, targetname)
   if targetname is None:
-    targetname = owners[0]
+    return {
+      'success': False, 'err': 'No owner online'
+    }
+  targetname = mr.rds.hget(mr.USER2IP, targetname)
 
   return {'success': True, 'node_ip': targetname}
 
